@@ -1,0 +1,2815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Display</title>
+    <style>
+        #leftBar {
+            position: fixed;
+            float: left;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 20%; /* Adjust the width of the left bar as needed */
+            background-color: #f0f0f0; /* Background color of the left bar */
+            padding: 20px; /* Add some padding for spacing */
+            box-sizing: border-box; /* Include padding and border in the element's total width and height */
+        }
+        
+
+        #inputWord {
+            width: calc(100% - 20px); /* Adjust input width to accommodate padding */
+            margin-bottom: 10px; /* Add some margin for spacing */
+        }
+
+        .wordBox {
+            padding-top: 0px;
+            padding-bottom: 0px;
+            height: 360px; /* Set the height of the word box */
+            width: 80%;
+            border: 5px solid black;
+            margin-left: 20%; /* Offset wordDisplay to make space for left bar */
+            margin-top: 20px; /* Add margin between wordDisplay and the new box */
+            padding: 20px; /* Add padding for spacing */
+            box-sizing: border-box; /* Include padding and border in the element's total width and height */
+        }
+        .container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+        }
+    
+        #slider-vertical {
+            width: 200px;
+            margin-right: 20px;
+            transform: rotate(270deg);
+            
+        }
+    
+        #slider-horizontal {
+            width: 100px;
+            height: 200px;
+            margin-bottom: 20px;
+            transform: translateX(-50px);
+            
+        }
+
+
+        .total {
+            display: flex;
+            height: 100vh;
+        }
+        .left, .right {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            padding: 10px;
+        }
+        #invisible-container {
+            display: none;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/svg.js/2.7.1/svg.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/svg.intersections.js@1.0.0/dist/svg.intersections.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.5.0/math.min.js"></script>
+</head>
+<body>
+    
+    <div class="total">
+        <div id="leftBar" class="left">
+            <h1>Enter word</h1>
+            <br>
+            <br>
+            <input type="text" id="inputWord" placeholder="Enter a word" onkeydown="handleKeyUp(event)">
+            <br>
+            <h4>Size of the word</h4>
+            <input type="range" id="sizeWord" min="4000" max="64000" step="100" value="0" oninput="displayWord()">
+            <br>
+            <h4>Word slider</h4>
+            <input type="range" id="shift_t" min="0" max="1" step="0.01" value="0" oninput="displayWord()">
+            <br><br>
+            <button onclick="addPointNew()">Add Point</button>
+            <h3>P1:</h3>
+            <div class="container">
+                <input id="slider-vertical" class='shifter' type="range" min="-1" max="1" step="0.01" value="0" oninput="displayWord()">
+                <input id="slider-horizontal" class='shifter' type="range" min="-1" max="1" step="0.01" value="0" oninput="displayWord()">
+            </div>
+            <h3>P2:</h3>
+            <div class="container">
+                <input id="slider-vertical" class='shifter' type="range" min="-1" max="1" step="0.01" value="0" oninput="displayWord()">
+                <input id="slider-horizontal" class='shifter' type="range" min="-1" max="1" step="0.01" value="0" oninput="displayWord()">
+            </div>
+            
+        </div>
+        <div id="rightBar" class="right">
+            <svg class="wordBox" id="wordDisplay">
+                <circle cx="926" cy="901" r="10" fill="red"/>
+                <circle cx="1402" cy="901" r="10" fill="red"/>
+            </svg>
+            
+            <svg class="wordBox" id="svgContainer" viewbox="0 0 4000 1600"></svg>
+            <svg class="wordBox" id="newSvgContainer" viewbox="0 0 4000 1600"></svg>
+        </div>
+    </div>
+    <div id="invisible-container"></div>
+
+
+    <script>
+
+        /**
+        * Adds two points and then draws the curve.
+        *
+        * This function calls `addPoint()` twice to add two points to the current context,
+        * followed by calling `drawCurve()` to render the curve based on the newly added points.
+        *
+        * @function
+        * @name addPointNew
+        * @returns {void} This function does not return a value.
+        */
+        function addPointNew(){
+            addPoint()
+            addPoint()
+            drawCurve()
+        }
+
+
+        /**
+        * Adds a new point with two range sliders to the left bar.
+        * Each slider allows values between -1 and 1 with a step of 0.01.
+        * The newly added point is labeled with a counter indicating its order.
+        * The function updates the inner HTML of the element with id 'leftBar'.
+        *
+        * @function addPoint
+        * @returns {void} This function does not return a value.
+        */
+        function addPoint(){
+            var lft = document.getElementById('leftBar');
+            var counter = 1 + ((document.getElementsByClassName("shifter").length)/2)
+            var htmlToAdd = `
+                            <h3>P${counter}:</h3>
+                            <div class="container">
+                                <input id="slider-vertical" class='shifter' type="range" min="-1" max="1" step="0.01" value="0" oninput="displayWord()">
+                                <input id="slider-horizontal" class='shifter' type="range" min="-1" max="1" step="0.01" value="0" oninput="displayWord()">
+                            </div>`
+            lft.innerHTML += htmlToAdd;
+        }
+
+
+        /**
+        * Handles the key up event for the input field.
+        * 
+        * This function clears any existing timeout and sets a new timeout to
+        * read the value from the input field after a delay. Once the delay
+        * is reached, it calls the `displayWord` function with the input value.
+        * 
+        * @param {KeyboardEvent} event - The event object representing the key up event.
+        * @returns {void}
+        */
+        var inputTimeout;
+
+        function handleKeyUp(event) {
+            
+            clearTimeout(inputTimeout);
+
+            inputTimeout = setTimeout(function() {
+                var inputElement = document.getElementById('inputWord');
+                var inputValue = inputElement.value;
+
+                displayWord(inputValue);
+            }, 100); 
+                    
+        }
+    
+
+        /**
+        * An object mapping English letters to their corresponding Arabic representations.
+        * 
+        * Each key is a letter (a-z), and its value is an array containing:
+        *  - The Arabic name of the letter (string).
+        *  - A boolean indicating if the letter is used in the Arabic language.
+        *  - Three additional booleans that could represent specific characteristics (e.g., 
+        *    if the letter is used in certain contexts, if it has different forms, etc.).
+        *
+        * @type {Object<string, [string, boolean, boolean, boolean, boolean]>}
+        */
+        const englishToArabicArray = {
+            'a': ['alef', true, true, false, false],
+            'b': ['beh', true, true, true, true],
+            'c': ['sad', true, true, true, true],
+            'd': ['dal', true, true, false, false],
+            'e': ['yeh', true, true, true, true],
+            'f': ['feh', true, true, true, true],
+            'g': ['ghain', true, true, true, true],
+            'h': ['hah', true, true, true, true],
+            'i': ['yeh', true, true, true, true],
+            'j': ['jeem', true, true, true, true],
+            'k': ['kaf', true, true, true, true],
+            'l': ['lam', true, true, true, true],
+            'm': ['meem', true, true, true, true],
+            'n': ['noon', true, true, true, true],
+            'o': ['waw', true, true, false, false],
+            'p': ['tah', true, true, true, true],
+            'q': ['ain', true, true, true, true],
+            'r': ['reh', true, true, false, false],
+            's': ['seen', true, true, true, true],
+            't': ['teh', true, true, true, true],
+            'u': ['waw', true, true, false, false],
+            'v': ['feh', true, true, true, true],
+            'w': ['khah', true, true, true, true],
+            'x': ['tMarbuta', true, true, false, false],
+            'y': ['aMaksura', true, true, false, false],
+            'z': ['zain', true, true, false, false],
+        };
+        
+
+        /**
+        * Displays a word by converting its letters to corresponding Arabic script paths
+        * and rendering it in an SVG format.
+        *
+        * This function retrieves the input word from an HTML input element, processes 
+        * each character to determine its corresponding path data, and fetches the 
+        * necessary path information from a CSV file. It constructs a visual representation 
+        * of the word by manipulating SVG elements based on the retrieved path data.
+        *
+        * The function handles special cases such as periods and spaces, adjusting the path 
+        * data accordingly. Finally, it updates the SVG containers to display the processed 
+        * word visually on the webpage.
+        *
+        * @function
+        * @returns {void} This function does not return a value.
+        *
+        * @example
+        * // To use this function, ensure there is an input element with id "inputWord"
+        * // and containers with ids "svgContainer" and "newSvgContainer" in your HTML.
+        * displayWord();
+        *
+        * @throws Will log an error to the console if there is an issue fetching the CSV file.
+        */
+        function displayWord() {
+            // Get the input value
+            var word = document.getElementById("inputWord").value;
+            var temp, temp2
+            var path = ''
+            var before = false
+            var after = false
+            var totalOffset = 0
+            var wordPath = ''
+            var pathData
+            var listOfIndexes = []
+            for(var i = 0; i < word.length; ++i){
+                var str
+                temp = englishToArabicArray[word[i]]
+                if(word[i] == '.'){
+                    str = 1
+                    before = true
+                }
+                else if(word[i] == ' '){
+                    str = 2
+                    before = false
+                }
+                else if(i == word.length - 1){
+                    if(before){
+                        if(temp[2]){
+                            str = temp[0] + '-ar.' + 'fina'
+                        }
+                        else{
+                            str = temp[0] + '-ar'
+                        }
+                    }
+                    else{
+                        str = temp[0] + '-ar'
+                    }
+                }
+                else{
+                    if(word[i + 1] == ' '){
+                        str = temp[0] + '-ar.' + 'fina'
+                        before = false
+                    }
+                    else if(word[i + 1] == '.'){
+                        if(temp[3]){
+                            str = temp[0] + '-ar.' + 'medi'
+                            before = true
+                        }
+                        else{
+                            str = temp[0] + '-ar.' + 'fina'
+                            before = false
+                        }
+                    }
+                    else if(before){
+                        temp2 = englishToArabicArray[word[i + 1]]
+                        if(temp2[2] || temp2[3]){
+                            if(temp[3]){
+                                str = temp[0] + '-ar.' + 'medi'
+                                before = true
+                            }
+                            else{
+                                str = temp[0] + '-ar.' + 'fina'
+                                before = false
+                            }
+                        }
+                        else{
+                            str = temp[0] + '-ar.' + 'fina'
+                            before = false
+                        }
+                    }
+                    else{
+                        temp2 = englishToArabicArray[word[i + 1]]
+                        if(temp2[2] || temp2[3]){
+                            if(temp[4]){
+                                str = temp[0] + '-ar.' + 'init'
+                                before = true
+                            }
+                            else{
+                                str = temp[0] + '-ar'
+                                before = false
+                            }
+                        }
+                        else{
+                            str = temp[0] + '-ar'
+                            before = false
+                        }
+                    }
+                }
+                listOfIndexes.push(str)
+            }
+            var listOfPaths = []
+
+            const fileName = './letter_paths.csv';
+
+            fetch(fileName)
+                .then(response => response.text())
+                .then(data => {
+                    const rows = data.split('\n');
+                    for (let i = 0; i < listOfIndexes.length; ++i){
+                        for (let j = 1; j < rows.length; ++j){
+                            if(rows[j].split(',\"')[0] == listOfIndexes[i]){
+                                listOfPaths.push(rows[j].split(',\"')[1].slice(0, -2))
+                                break
+                            }
+                        }
+                    }
+            
+                    var finalString = ''
+                    var listOfLetters = []
+                    var hello
+                    var rightPoints = [[0,0],[0,0]]
+                    var currentPathIndex
+                    var offset = 0
+                    for(let i = listOfPaths.length - 1; i > -1; --i){
+                        currentPathIndex = listOfPaths[i]
+                        if(i != 0){
+                            if(currentPathIndex.slice(currentPathIndex.length-2) == 'ar' || currentPathIndex.slice(currentPathIndex.length-2) == 'it'){
+                                continue
+                            }
+                        }
+                        if(listOfPaths[i] == 1){
+                            offset = offset + 200
+                        }
+                        else if(listOfPaths[i] == 2){
+                            offset = 500
+                        }
+                        else if(i == listOfPaths.length - 1){
+                            hello = identifyEdges(currentPathIndex, rightPoints, offset)
+                            offset = 0
+                        }
+                        else{
+                            hello = identifyEdges(currentPathIndex, rightPoints, offset)
+                            offset = 0
+                        }
+                        
+                        finalString = finalString + hello[0]
+                        listOfLetters.push(hello[0])
+                        rightPoints = hello[1]
+                    }
+
+
+                    var curveDisplay = document.getElementById("svgContainer");
+                    curveDisplay.innerHTML = "";
+                    var newCurveDisplay = document.getElementById("newSvgContainer");
+                    newCurveDisplay.innerHTML = "";
+
+
+                    getNewPoints2(listOfLetters)
+
+
+                    var percentage = document.getElementById("shift_t").value;
+                    var finCurve = getNewPoints(finalString, percentage)
+                    
+                    var viewBox
+                     
+                    [finalString, viewBox] = absolute_to_relative(finalString, 0)
+                    // instead of 3000 below : (viewBox[1] - viewBox[0] + 300)
+                    var wordSize = document.getElementById('sizeWord').value
+                    if(viewBox[1]<wordSize){
+                        newViewBox = "-100 100 " + wordSize + " 1300"
+                    }
+                    else{
+                        newViewBox = "-100 100 " + (viewBox[1]+300) + " 1300"
+                    }
+                    
+                    curveDisplay.setAttribute("viewBox", newViewBox);
+                    newCurveDisplay.setAttribute("viewBox", newViewBox);
+                    var wordDisplayDiv = document.getElementById("wordDisplay");
+                    var wordSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                    wordSvg.setAttribute("viewBox", newViewBox);
+                    var pathElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    pathElement.setAttribute("d", finalString);
+                    wordSvg.appendChild(pathElement);
+                    var wordSize = document.getElementById('sizeWord').value
+                    linePath = "M " + viewBox[0] + " 941 h " + wordSize
+                    var lineElement = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    lineElement.setAttribute("d", linePath)
+                    lineElement.setAttribute("stroke", "red")
+                    lineElement.setAttribute("stroke-width", "2")
+                    wordSvg.appendChild(lineElement);
+                    wordDisplayDiv.innerHTML = "";
+                    wordDisplayDiv.appendChild(wordSvg);
+    
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+
+        /**
+        * Splits an SVG path string into its individual commands and parameters based on 
+        * specified delimiters (space, comma, or hyphen) and custom command paths.
+        *
+        * @param {string} str - The SVG path string to be split into commands.
+        * @returns {string[]} An array of individual commands and parameters extracted from the SVG path.
+        *
+        * @example
+        * // returns ['M', '10', '10', 'L', '20', '20']
+        * custom_split('M 10 10 L 20 20');
+        *
+        * @example
+        * // returns ['M', '0', '0', 'C', '10', '10', '20', '20', '30', '30']
+        * custom_split('M 0,0 C 10,10 20,20 30,30');
+        *
+        * @example
+        * // returns ['Z']
+        * custom_split('Z');
+        */
+        function custom_split(str){
+            var list = []
+            var new_list = []
+            var start = 0
+            var end = 0
+            for (var i = 0; i < str.length; i++){
+                if(str[i] == ' ' || str[i] == ','){
+                    end = i
+                    list.push(str.substring(start, end))
+                    start = end + 1
+                }
+                else if(str[i] == '-'){
+                    end = i
+                    list.push(str.substring(start, end))
+                    start = end
+                }
+
+                else if(is_command_path(str[i])){
+                    if(str[i - 1] != ' '){
+                        if(str[i - 1] != ','){
+                            end = i
+                            list.push(str.substring(start, end))
+                            start = i
+                        }
+                    }
+                    end = i + 1
+                    list.push(str.substring(start, end))
+                    start = end
+                }
+
+                else if( i == (str.length - 1)){
+                    list.push(str.substring(start))
+                }
+            }
+            for (var i = 0; i < list.length; i++){
+                if(list[i] == ''){
+                    continue
+                }
+                else{
+                    new_list.push(list[i])
+                }
+            }
+            return new_list
+        }
+
+
+        /**
+        * Determines if a given character is a valid SVG command path character.
+        *
+        * @param {string} char - The character to check.
+        * @returns {boolean} Returns true if the character is a valid SVG command, 
+        *                    false otherwise.
+        *
+        * @example
+        * // returns true
+        * is_command_path('M');
+        *
+        * @example
+        * // returns false
+        * is_command_path('X');
+        */
+        function is_command_path(char){
+            var list_of_all_char = ["M", "m", "L", "l", "H", "h", "V", "v", "C", "c", "S", "s", "Q", "q", "T", "t", "A", "a", "Z", "z"]
+            for (var i = 0; i < list_of_all_char.length; i++){
+                if(char == list_of_all_char[i]){
+                    return true
+                }
+            }
+            return false
+        }
+
+
+        /**
+        * Groups the elements of an array of SVG path commands into subarrays based on 
+        * the occurrence of command characters.
+        *
+        * @param {string[]} lst - An array of SVG path commands and parameters.
+        * @returns {string[][]} An array of arrays, where each subarray contains the 
+        *                       parameters corresponding to a single SVG command.
+        *
+        * @example
+        * // returns [['M', '10', '10'], ['L', '20', '20']]
+        * get_list_of_commands(['M', '10', '10', 'L', '20', '20']);
+        *
+        * @example
+        * // returns [['M', '0', '0'], ['C', '10', '10', '20', '20', '30', '30']]
+        * get_list_of_commands(['M', '0', '0', 'C', '10', '10', '20', '20', '30', '30']);
+        *
+        * @example
+        * // returns [['Z']]
+        * get_list_of_commands(['Z']);
+        */
+        function get_list_of_commands(lst){
+            var start = 0
+            var end = 0
+            var command_list = []
+            for(var i = 0; i < lst.length; ++i){
+                if(is_command_path(lst[i])){
+                    end = i
+                    command_list.push(lst.slice(start, end))
+                    start = i
+                }
+                if(i == lst.length - 1){
+                    command_list.push(lst.slice(start, ))
+                }
+            }
+            return command_list.slice(1,)
+        }
+        
+
+        /**
+        * Converts any SVG path commands to relative commands, adjusting the 
+        * coordinates based on the current pen location and a specified offset.
+        *
+        * @param {string} str - The SVG path string containing absolute commands.
+        * @param {number} [offset=0] - An optional offset to adjust the initial 
+        *                               command position.
+        * @param {number[]} [connectionIndex=[]] - Optional indices to determine 
+        *                                           where to add commas in the output string.
+        * @param {number} [lstBool=0] - Optional flag to indicate whether to return 
+        *                                only the relative commands or the final string.
+        * @returns {Array} If `lstBool` is 1, returns an array of relative commands. 
+        *                  Otherwise, returns an array containing the resulting 
+        *                  relative command string and the max left and right 
+        *                  coordinates.
+        *
+        * @example
+        * // returns ['M 10 10 l 10 10', [10, 20]]
+        * absolute_to_relative('M 10 10 L 20 20', 0);
+        *
+        * @example
+        * // returns [['M', 10, 10], ['l', 20, 20]]
+        * absolute_to_relative('M 10 10 L 20 20', 0, [], 1);
+        *
+        * @example
+        * // returns ['M 110 10 l 10 10', [110, 120]]
+        * absolute_to_relative('M 10 10 L 20 20', 100);
+        *
+        */
+        function absolute_to_relative(str, offset = 0, connectionIndex = [], lstBool = 0){
+            var characters_capital = ['C','L','Q','H','S','M','A','Z','V']
+            var characters_lower = ['c','l','q','h','s','m','a','z','v']
+            var split = custom_split(str)
+            var list_of_commands = get_list_of_commands(split)
+            var pen_location = [parseFloat(list_of_commands[0][1]), parseFloat(list_of_commands[0][2])]
+            var relative_commands = []
+            var temp_x, temp_y, new_command, temp
+            var maxLeftRight = [1000,0]
+            list_of_commands[0][1] = (parseFloat(list_of_commands[0][1]) + offset)
+            relative_commands.push(list_of_commands[0])
+            var lastM = [parseFloat(list_of_commands[0][1]), parseFloat(list_of_commands[0][2])]
+            for(var i = 1; i <list_of_commands.length; ++i){
+                current_command = list_of_commands[i]
+                if(pen_location[0] < maxLeftRight[0]){
+                    maxLeftRight[0] = pen_location[0]
+                }
+                if(pen_location[0] > maxLeftRight[1]){
+                    maxLeftRight[1] = pen_location[0]
+                }
+                
+                if(current_command[0] == 'C'){
+                    //C x1 y1, x2 y2, x y
+                    new_command = ['c']
+                    // x1 y1
+                    temp_x = parseFloat(current_command[1]) - pen_location[0]
+                    temp_y = parseFloat(current_command[2]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    // x2 y2
+                    temp_x = parseFloat(current_command[3]) - pen_location[0]
+                    temp_y = parseFloat(current_command[4]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    // x y
+                    temp_x = parseFloat(current_command[5]) - pen_location[0]
+                    temp_y = parseFloat(current_command[6]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    pen_location = [parseFloat(current_command[5]), parseFloat(current_command[6])]
+
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 'L'){
+                    //L x y
+                    new_command = ['l']
+                    for(var j = 1; j < current_command.length; j +=2){
+                        temp_x = parseFloat(current_command[j]) - pen_location[0]
+                        temp_y = parseFloat(current_command[j + 1]) - pen_location[1]
+                        new_command.push(temp_x)
+                        new_command.push(temp_y)
+                        pen_location = [parseFloat(current_command[j]), parseFloat(current_command[j + 1])]
+                    }
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 'Q'){
+                    //Q x1 y1, x y
+                    new_command = ['q']
+                    // x1 y1
+                    temp_x = parseFloat(current_command[1]) - pen_location[0]
+                    temp_y = parseFloat(current_command[2]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    // x y
+                    temp_x = parseFloat(current_command[3]) - pen_location[0]
+                    temp_y = parseFloat(current_command[4]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    pen_location = [parseFloat(current_command[3]), parseFloat(current_command[4])]
+
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 'H'){
+                    //H x
+                    new_command = ['l']
+                    //x
+                    temp_x = parseFloat(current_command[1]) - pen_location[0]
+                    new_command.push(temp_x)
+                    new_command.push("0")
+                    pen_location[0] = parseFloat(current_command[1])
+
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 'S'){
+                    //S x2 y2, x y
+                    new_command = ['s']
+                    // x2 y2
+                    temp_x = parseFloat(current_command[1]) - pen_location[0]
+                    temp_y = parseFloat(current_command[2]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    // x y
+                    temp_x = parseFloat(current_command[3]) - pen_location[0]
+                    temp_y = parseFloat(current_command[4]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    pen_location = [parseFloat(current_command[3]), parseFloat(current_command[4])]
+
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 'M'){
+                    //M x y
+                    new_command = ['m']
+                    //x y
+                    temp_x = parseFloat(current_command[1]) - pen_location[0]
+                    temp_y = parseFloat(current_command[2]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+                    pen_location = [parseFloat(current_command[1]), parseFloat(current_command[2])]
+
+                    relative_commands.push(new_command)
+                    lastM = [parseFloat(current_command[1]), parseFloat(current_command[2])]
+                }
+                else if(current_command[0] == 'A'){
+                    //A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+                    new_command = ['a']
+                    new_command.push(current_command[1])
+                    new_command.push(current_command[2])
+                    new_command.push(current_command[3])
+                    new_command.push(current_command[4])
+                    new_command.push(current_command[5])
+                    temp_x = parseFloat(current_command[6]) - pen_location[0]
+                    temp_y = parseFloat(current_command[7]) - pen_location[1]
+                    new_command.push(temp_x)
+                    new_command.push(temp_y)
+
+                    pen_location = [parseFloat(current_command[6]), parseFloat(current_command[7])]
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 'Z'){
+                    relative_commands.push(['l', ""+(lastM[0] - pen_location[0]), ""+(lastM[1] - pen_location[1])])
+                    pen_location = lastM
+                }
+                else if(current_command[0] == 'V'){
+                    //H x
+                    new_command = ['l']
+                    //x
+                    temp_y = parseFloat(current_command[1]) - pen_location[0]
+                    new_command.push("0")
+                    new_command.push(temp_y)
+                    pen_location[0] = parseFloat(current_command[1])
+
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 'c'){
+                    var temp_x = parseFloat(current_command[current_command.length -2]) + pen_location[0]
+                    var temp_y = parseFloat(current_command[current_command.length -1]) + pen_location[1]
+                    pen_location = [temp_x, temp_y]
+
+                    relative_commands.push(current_command)
+                }
+                else if(current_command[0] == 'l'){
+                    for (var j = 1; j < current_command.length; j = j + 2){
+                        pen_location[0] = parseFloat(current_command[j]) + pen_location[0]
+                        pen_location[1] = parseFloat(current_command[j + 1]) + pen_location[1]
+                    }
+
+                    relative_commands.push(current_command)
+                }
+                else if(current_command[0] == 'q'){
+                    var temp_x = parseFloat(current_command[current_command.length -2]) + pen_location[0]
+                    var temp_y = parseFloat(current_command[current_command.length -1]) + pen_location[1]
+                    pen_location = [temp_x, temp_y]
+                    
+                    relative_commands.push(current_command)
+                }
+                else if(current_command[0] == 'h'){
+                    var temp_x = parseFloat(current_command[current_command.length -1]) + pen_location[0]
+                    pen_location[0] = temp_x
+                    new_command = ["l"]
+                    new_command.push(current_command[1])
+                    new_command.push("0")
+
+                    relative_commands.push(new_command)
+                }
+                else if(current_command[0] == 's'){
+                    var temp_x = parseFloat(current_command[current_command.length -2]) + pen_location[0]
+                    var temp_y = parseFloat(current_command[current_command.length -1]) + pen_location[1]
+                    pen_location = [temp_x, temp_y]
+
+                    relative_commands.push(current_command)
+                }
+                else if(current_command[0] == 'm'){
+                    var temp_x = parseFloat(current_command[current_command.length -2]) + pen_location[0]
+                    var temp_y = parseFloat(current_command[current_command.length -1]) + pen_location[1]
+                    pen_location = [temp_x, temp_y]
+
+                    relative_commands.push(current_command)
+                }
+                else if(current_command[0] == 'a'){
+                    var temp_x = parseFloat(current_command[current_command.length -2]) + pen_location[0]
+                    var temp_y = parseFloat(current_command[current_command.length -1]) + pen_location[1]
+                    pen_location = [temp_x, temp_y]
+
+                    relative_commands.push(current_command)
+                }
+                else if(current_command[0] == 'z'){
+                    relative_commands.push(['l', ""+(lastM[0] - pen_location[0]), ""+(lastM[1] - pen_location[1])])
+                    pen_location = lastM
+                }
+                else if(current_command[0] == 'v'){
+                    var temp_y = parseFloat(current_command[current_command.length -1]) + pen_location[1]
+                    pen_location[1] = temp_y
+                    new_command = ["l"]
+                    new_command.push("0")
+                    new_command.push(current_command[1])
+                    relative_commands.push(new_command)
+                }
+            }
+            //relative_commands.push(['l', ""+(lastM[0] - pen_location[0]), ""+(lastM[1] - pen_location[1])])
+            
+            var new_reltive_commands = []
+            for (var i = 0; i < relative_commands.length; ++i){
+
+                if(relative_commands[i][0] == "l" && relative_commands[i][1] == "0" && relative_commands[i][2] == "0"){
+                    continue
+                }
+                else{
+                    new_reltive_commands.push(relative_commands[i])
+                }
+            }
+
+            if(lstBool == 1){
+                return new_reltive_commands
+            }
+            
+            var final_str = ''
+            for(var i = 0; i <new_reltive_commands.length; ++i){
+                temp = new_reltive_commands[i]
+                if(connectionIndex.length > 0){
+                    if(connectionIndex[0] <= i && connectionIndex[2] >= i){
+                        
+                        final_str = final_str + temp[0] + temp[1]
+                        for(var j = 2; j <temp.length; ++j){
+                            final_str = final_str + ',' + temp[j]
+                        }
+                        final_str = final_str + ' '
+                    }
+                    else{
+                        final_str = final_str + temp[0] + temp[1]
+                        for(var j = 2; j <temp.length; ++j){
+                            final_str = final_str + ' ' + temp[j]
+                        }
+                        final_str = final_str + ' '
+                    }
+                }
+                else{
+                    final_str = final_str + temp[0] + temp[1]
+                    for(var j = 2; j <temp.length; ++j){
+                        final_str = final_str + ' ' + temp[j]
+                    }
+                    final_str = final_str + ' '
+                }
+            }
+
+
+
+            return [final_str, [maxLeftRight[0] , maxLeftRight[1]]]
+        }
+       
+
+        /**
+        * Appends an SVG path element to a specified SVG container with customizable properties.
+        * The function allows for different configurations based on color and a boolean flag.
+        *
+        * @param {string} pathData - The SVG path data string that defines the shape of the path.
+        * @param {string} [c="red"] - The stroke color of the path. Defaults to "red". Acceptable values are "red", "blue", and "black".
+        * @param {number} [bo=0] - A flag that determines the behavior of the function:
+        *                           - 0: Append to both "svgContainer" and "newSvgContainer".
+        *                           - 1: (not implemented) Append to "svgContainer" with default properties.
+        *                           - 2: Append to "newSvgContainer" with specific properties.
+        * @param {number} [connect=0] - A flag that determines the stroke width for the black color.
+        *                                If set to 1, the stroke width will be set to 80px.
+        *
+        * @example
+        * // Appends a red path to both SVG containers with default stroke width.
+        * appendPath("M 10 10 L 20 20");
+        *
+        * @example
+        * // Appends a blue path to both SVG containers with a stroke width of 10px.
+        * appendPath("M 10 10 L 20 20", "blue");
+        *
+        * @example
+        * // Appends a black path to the new SVG container with a stroke width of 80px if connect is set to 1.
+        * appendPath("M 10 10 L 20 20", "black", 2, 1);
+        *
+        * @returns {void} This function does not return a value. It modifies the DOM by appending SVG path elements.
+        */
+        function appendPath(pathData, c = "red", bo = 0, connect = 0) {
+            if(bo == 0){
+                var svg1 = document.getElementById("svgContainer");
+                var svg2 = document.getElementById("newSvgContainer");
+
+                var path1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path1.setAttribute("d", pathData);
+                path1.setAttribute("stroke", c);
+                path1.setAttribute("fill", "none");
+
+                var path2 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path2.setAttribute("d", pathData);
+                path2.setAttribute("stroke", c);
+                path2.setAttribute("fill", "none");
+
+                if(c == "red"){
+                    path1.setAttribute("stroke-width", "5px");
+                    path1.setAttribute("fill", "none");
+
+                    path2.setAttribute("stroke-width", "5px");
+                    path2.setAttribute("fill", "none");
+                }
+                else if(c == "blue"){
+                    path1.setAttribute("stroke-width", "10px");
+                    path1.setAttribute("fill", "black");
+                    
+                    path2.setAttribute("stroke-width", "10px");
+                    path2.setAttribute("fill", "black");
+                }
+                else if(c == 'black'){
+                    path1.setAttribute("stroke-width", "5px");
+                    path1.setAttribute("fill", "black");
+                    path2.setAttribute("stroke-width", "5px");
+                    path2.setAttribute("fill", "black");
+                }
+
+
+                svg1.appendChild(path1);
+                svg2.appendChild(path2);
+            }
+            else if(bo == 2){
+                var svg1 = document.getElementById("newSvgContainer");
+                var path1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path1.setAttribute("d", pathData);
+                path1.setAttribute("stroke", c);
+                path1.setAttribute("fill", "none");
+
+                if(c == "red"){
+                    path1.setAttribute("stroke-width", "5px");
+                    path1.setAttribute("fill", "none");
+                }
+                else if(c == "blue"){
+                    path1.setAttribute("stroke-width", "5px");
+                    path1.setAttribute("fill", "none");
+                }
+                else if(c == 'black'){
+                    if(connect == 1){
+                        path1.setAttribute("stroke-width", "80px");
+                    }
+                    else{
+                        path1.setAttribute("stroke-width", "5px");
+                        path1.setAttribute("fill", "black");
+                    }
+                }
+
+
+                svg1.appendChild(path1);
+            }
+            else{
+                var svg1 = document.getElementById("svgContainer");
+                var path1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path1.setAttribute("d", pathData);
+                path1.setAttribute("stroke", c);
+                path1.setAttribute("fill", "none");
+
+                if(c == "red"){
+                    path1.setAttribute("stroke-width", "5px");
+                    path1.setAttribute("fill", "none");
+                }
+                else if(c == "blue"){
+                    path1.setAttribute("fill", "black");
+                }
+                else if(c == 'black'){
+                    path1.setAttribute("stroke-width", "5px");
+                    path1.setAttribute("fill", "black");
+                }
+
+
+                svg1.appendChild(path1);
+            }
+        }
+
+
+        /**
+        * Adds one or two SVG circle elements to specified SVG containers based on provided parameters.
+        * The function supports different configurations for circle attributes such as radius, fill color, and stroke.
+        *
+        * @param {number[]} lst - An array containing the x and y coordinates for the circle's center.
+        * @param {number} [x=0] - A value that determines the circle's properties:
+        *                          - 0: Adds a default green circle with radius 10.
+        *                          - 1: Adds a red circle with radius 20.
+        *                          - 2: Adds a blue circle with radius 20.
+        *                          - "x1": Adds a green stroke circle with radius 30 and increments redGrad.
+        *                          - "x2": Adds a circle with a green gradient based on greenGrad.
+        *                          - "x3": Adds a circle with a blue gradient based on blueGrad.
+        * @param {number} [bo=0] - A flag that determines the behavior of the function:
+        *                          - 0: Adds circles to both "svgContainer" and "newSvgContainer".
+        *                          - 1: Adds a circle only to "svgContainer".
+        *                          - 2: Adds a circle only to "newSvgContainer".
+        *
+        * @example
+        * // Adds a red circle at coordinates [50, 50] to both SVG containers.
+        * addCircle([50, 50], 1);
+        *
+        * @example
+        * // Adds a blue circle at coordinates [100, 100] to both SVG containers.
+        * addCircle([100, 100], 2);
+        *
+        * @example
+        * // Adds a green stroke circle at coordinates [150, 150] to both SVG containers and increments redGrad.
+        * addCircle([150, 150], "x1");
+        *
+        * @example
+        * // Adds a circle with a green gradient at coordinates [200, 200] to svgContainer only.
+        * addCircle([200, 200], "x2", 1);
+        *
+        * @returns {void} This function does not return a value. It modifies the DOM by appending SVG circle elements.
+        */
+        var iter = 0
+        var greenGrad = 0
+        var redGrad = 0
+        var blueGrad = 0
+        function addCircle(lst, x = 0, bo = 0){
+            return
+            if(bo == 0){
+                var svg1 = document.getElementById("svgContainer");
+                var svg2 = document.getElementById("newSvgContainer");
+                var circle1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                var circle2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+
+                circle1.setAttribute("cx", lst[0]);
+                circle1.setAttribute("cy", lst[1]);
+
+                circle2.setAttribute("cx", lst[0]);
+                circle2.setAttribute("cy", lst[1]);
+
+                if(x == 1){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", "red");
+
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", "red");
+                }
+                else if(x == 2){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", "blue");
+                    
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", "blue");
+                }
+                else if(x == "x1"){
+                    circle1.setAttribute("r", "10");
+                    circle1.setAttribute("fill", "none"); 
+                    circle1.setAttribute("stroke", "green");  
+
+                    circle2.setAttribute("r", "10");
+                    circle2.setAttribute("fill", "none"); 
+                    circle2.setAttribute("stroke", "green");  
+                    ++redGrad
+                }
+                else if(x == "x2"){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", ("#00" + greenGrad + "00"));
+                    
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", ("#00" + greenGrad + "00"));
+                    ++greenGrad
+                }
+                else if(x == "x3"){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", ("#0000" + blueGrad));
+                    
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", ("#0000" + blueGrad));
+                    ++blueGrad
+                }
+                else{
+                    circle1.setAttribute("r", "10");
+                    circle1.setAttribute("fill", "green");
+
+                    circle2.setAttribute("r", "10");
+                    circle2.setAttribute("fill", "green");
+                }
+                
+                
+                svg1.appendChild(circle1);
+                svg2.appendChild(circle2);
+            }
+            else if(bo == 1){
+                var svg1 = document.getElementById("svgContainer");
+                var circle1 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+
+                circle1.setAttribute("cx", lst[0]);
+                circle1.setAttribute("cy", lst[1]);
+
+                if(x == 1){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", "red");
+                }
+                else if(x == 2){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", "blue");
+                }
+                else if(x == "x1"){
+                    circle1.setAttribute("r", "30");
+                    circle1.setAttribute("fill", "none"); 
+                    circle1.setAttribute("stroke", "green");  
+                    ++redGrad
+                }
+                else if(x == "x2"){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", ("#00" + greenGrad + "00"));
+                    ++greenGrad
+                }
+                else if(x == "x3"){
+                    circle1.setAttribute("r", "20");
+                    circle1.setAttribute("fill", ("#0000" + blueGrad));
+                    
+                    ++blueGrad
+                }
+                else{
+                    circle1.setAttribute("r", "10");
+                    circle1.setAttribute("fill", "green");
+
+                }
+                
+                
+                svg1.appendChild(circle1);
+            }
+            else{
+                var svg2 = document.getElementById("newSvgContainer");
+                var circle2 = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+
+                circle2.setAttribute("cx", lst[0]);
+                circle2.setAttribute("cy", lst[1]);
+
+                if(x == 1){
+
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", "red");
+                }
+                else if(x == 2){
+                    
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", "blue");
+                }
+                else if(x == "x1"){
+                    circle2.setAttribute("r", "10");
+                    circle2.setAttribute("fill", "none"); 
+                    circle2.setAttribute("stroke", "green");  
+                    ++redGrad
+                }
+                else if(x == "x2"){
+                    
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", ("#00" + greenGrad + "00"));
+                    ++greenGrad
+                }
+                else if(x == "x3"){
+                    circle2.setAttribute("r", "20");
+                    circle2.setAttribute("fill", ("#0000" + blueGrad));
+                    ++blueGrad
+                }
+                else{
+                    circle2.setAttribute("r", "10");
+                    circle2.setAttribute("fill", "green");
+                }
+                svg2.appendChild(circle2);
+            }
+            
+        }
+
+
+        /**
+        * Checks if a given character is a relative SVG path command.
+        *
+        * This function takes in a character and returns `true` if it corresponds to a 
+        * relative command in SVG path data; otherwise, it returns `false`.
+        *
+        * @param {string} char - The character to check against known relative SVG path commands.
+        *                        It should be a single character.
+        * @returns {boolean} Returns `true` if the character is a relative command, 
+        *                   otherwise returns `false`.
+        *
+        * @example
+        * // returns true for the relative move command
+        * is_relative_command_path('m'); // true
+        *
+        * @example
+        * // returns false for a non-relative command
+        * is_relative_command_path('M'); // false
+        *
+        * @example
+        * // returns true for the relative line command
+        * is_relative_command_path('l'); // true
+        *
+        * @example
+        * // returns false for an invalid command
+        * is_relative_command_path('x'); // false
+        */
+        function is_relative_command_path(char){
+            /*
+                takes in a character and returns true if it is a command path and false other wise
+            */
+            var list_of_all_char = ["m", "l", "h", "v", "c", "s", "q", "t", "a", "z"]
+            for (var i = 0; i < list_of_all_char.length; i++){
+                if(char == list_of_all_char[i]){
+                    return true
+                }
+            }
+            return false
+        }
+    
+
+        /**
+        * Converts relative SVG path commands to absolute commands.
+        *
+        * This function takes a string of SVG path data that may contain relative commands 
+        * and converts them into their absolute equivalents, returning the result as an 
+        * array of commands. The first command is assumed to be an absolute command.
+        *
+        * @param {string} str - The SVG path data string containing relative commands.
+        * @returns {Array} Returns an array of commands with absolute coordinates.
+        *                  If the input string is empty, it returns an empty array.
+        *
+        * @example
+        * // returns [['M', 10, 10], ['L', 20, 20]]
+        * relative_to_absolute('m 10 10 l 10 10');
+        *
+        * @example
+        * // returns [['M', 0, 0], ['L', 10, 10], ['L', 20, 10]]
+        * relative_to_absolute('M 0 0 l 10 10 L 10 0');
+        *
+        * @example
+        * // returns an empty array for an empty input
+        * relative_to_absolute(''); // []
+        */
+        function relative_to_absolute(str){
+            if(str == ""){
+                return []
+            }
+            var split = custom_split(str)
+            var lst = get_list_of_commands(split)
+            var firstCommand = [lst[0][0], parseFloat(lst[0][1]), parseFloat(lst[0][2])]
+            var abs = [firstCommand]
+            var characters_lower = ['c','l','q','h','s','m','a','z','v']
+            for(var i = 1; i < lst.length; ++i){
+                if(is_relative_command_path(lst[i][0])){
+                    if(lst[i][0] == 'h' ){
+                        temp = ['L',  parseFloat(abs[i-1][abs[i-1].length - 2]) + parseFloat(lst[i][1]), parseFloat(abs[i-1][abs[i-1].length - 1])]
+                    }
+                    else if(lst[i][0] == 'v' ){
+                        temp = ['L',  parseFloat(abs[i-1][abs[i-1].length - 2]), parseFloat(abs[i-1][abs[i-1].length - 1]) + parseFloat(lst[i][1])]
+                    }
+                    else{
+                        
+                        temp = [lst[i][0].toUpperCase()]
+                        for (var j = 1; j < lst[i].length; j +=2){
+                            var currentX = parseFloat(abs[i-1][abs[i-1].length - 2])
+                            var currentY = parseFloat(abs[i-1][abs[i-1].length - 1])
+                            temp.push(parseFloat(lst[i][j]) + currentX)
+                            temp.push(parseFloat(lst[i][j + 1]) + currentY)
+                        }
+                    }
+                    abs.push(temp)
+                }
+                else{
+                    abs.push(lst[i])
+                }
+            }
+            return abs
+            new_list = []
+            for (var i = 0; i < abs.length; ++i){
+                if (abs[i][0] == 'Z'){
+                    continue
+                }
+                else{
+                    temp = abs[i][0] + abs[i][1]
+                    for (var j = 2; j < abs[i].length; ++j){
+                        temp += ',' + abs[i][j]
+                    }
+                    new_list.push(temp)
+                }
+                
+            }
+            return new_list
+        }
+        
+        /**
+        * Calculates the vertical distances of Y-coordinates from a specified reference point.
+        *
+        * This function takes an array of SVG path commands and computes the distance of 
+        * each Y-coordinate from a reference value (default is 941). The distances are 
+        * returned as an array.
+        *
+        * @param {Array} lst - An array of SVG path command arrays, where each command 
+        *                      contains coordinates (e.g., [['M', x1, y1], ['L', x2, y2], ...]).
+        * @param {number} [y=941] - The Y-coordinate reference point to calculate distances from.
+        * @returns {Array} An array of distances from the specified Y-coordinate.
+        *
+        * @example
+        * // returns [-931, -921] (assuming input contains coordinates at 10 and 20)
+        * get_distances([['M', 10, 10], ['L', 20, 20]]);
+        *
+        * @example
+        * // returns [0, -941] (calculating distances from 941)
+        * get_distances([['M', 100, 941], ['L', 200, 0]]);
+        *
+        * @example
+        * // returns [-1000, -900] (calculating distances from 500)
+        * get_distances([['M', 100, 0], ['L', 200, 100]], 500);
+        */
+        function get_distances(lst, y = 941){
+            let distances = []
+            for(var i = 0; i < lst.length; ++i){
+                for (var j = 2; j < lst[i].length; j += 2){
+                    distances.push(parseFloat(lst[i][j]) - y)
+                }
+            }
+            return distances
+        }
+        
+
+        /**
+        * Finds the leftmost and rightmost X-coordinates from a list of SVG path commands.
+        *
+        * This function iterates through an array of SVG path commands and determines
+        * the smallest (leftmost) and largest (rightmost) X-coordinates present. 
+        * It returns these values as an array.
+        *
+        * @param {Array} lst - An array of SVG path command arrays, where each command 
+        *                      contains coordinates (e.g., [['M', x1, y1], ['L', x2, y2], ...]).
+        * @returns {Array} An array containing the leftmost and rightmost X-coordinates 
+        *                  as [leftMost, rightMost].
+        *
+        * @example
+        * // returns [10, 20] (if commands have X-coordinates 10 and 20)
+        * getLeftandRightMost([['M', 10, 10], ['L', 20, 20]]);
+        *
+        * @example
+        * // returns [0, 100] (if commands have X-coordinates 0, 50, and 100)
+        * getLeftandRightMost([['M', 0, 0], ['L', 50, 50], ['L', 100, 100]]);
+        *
+        * @example
+        * // returns [-10, 30] (if commands have X-coordinates -10 and 30)
+        * getLeftandRightMost([['M', -10, 0], ['L', 0, 20], ['L', 30, 10]]);
+        */
+        function getLeftandRightMost(lst){
+            var leftMost = parseFloat(lst[0][1])
+            var rightMost = parseFloat(lst[0][1])
+            for(var i = 1; i < lst.length; ++i){
+                for(var j = 1; j <lst[i].length; j += 2){
+                    if (leftMost > lst[i][j]){
+                        leftMost = lst[i][j]
+                    }
+                    else if(rightMost < lst[i][j]){
+                        rightMost = lst[i][j]
+                    }
+                }
+            }
+            return [leftMost, rightMost]
+        }
+
+
+        /**
+        * Calculates normalized T values for a list of SVG path commands based on 
+        * the specified percentage and word size.
+        *
+        * This function retrieves a percentage and word size from the DOM, calculates 
+        * the leftmost and rightmost X-coordinates of the provided path commands, 
+        * and computes the normalized T values for each command based on the distance 
+        * from the leftmost coordinate, adjusted by a calculated offset.
+        *
+        * @param {Array} lst - An array of SVG path command arrays, where each command 
+        *                      contains coordinates (e.g., [['M', x1, y1], ['L', x2, y2], ...]).
+        * @returns {Array} An array of normalized T values calculated from the input path commands.
+        *
+        * @example
+        * // Assuming the following values are in the DOM:
+        * // shift_t: 50 (50%),
+        * // sizeWord: 300 (word size)
+        * // Assuming lst is [['M', 0, 0], ['L', 100, 100]]
+        * // Returns normalized T values adjusted by the percentage and word size.
+        * getT([['M', 0, 0], ['L', 100, 100]]);
+        *
+        * @example
+        * // Assuming the following values are in the DOM:
+        * // shift_t: 25 (25%),
+        * // sizeWord: 200 (word size)
+        * // Assuming lst is [['M', 10, 0], ['L', 50, 50]]
+        * // Returns normalized T values adjusted by the percentage and word size.
+        * getT([['M', 10, 0], ['L', 50, 50]]);
+        */
+        function getT(lst){
+            var percentage = document.getElementById("shift_t").value
+            var wordSize = document.getElementById('sizeWord').value
+            var lr = getLeftandRightMost(lst)
+            var d = lr[1] - lr[0]
+            var ratio = d/wordSize
+            var toAdd = (wordSize - 100 - lr[1])*percentage/wordSize
+            var tValues = []
+
+            
+            for(var i = 0; i < lst.length; ++i){
+                for(var j = 1; j <lst[i].length; j += 2){
+                    var temp = (((lst[i][j] - lr[0]))/wordSize)
+
+                    tValues.push(temp + toAdd)
+                }
+            }
+            return tValues
+        }
+
+
+        /**
+        * Calculates the point on a quadratic Bézier curve at a given parameter `t`.
+        *
+        * A quadratic Bézier curve is defined by three points: the start point `p0`,
+        * control point `p1`, and end point `p2`. The function uses the parameter `t`
+        * to compute the position along the curve.
+        *
+        * @param {number} t - The parameter along the Bézier curve, typically in the range [0, 1].
+        * @param {number} p0 - The starting point of the curve.
+        * @param {number} p1 - The control point of the curve.
+        * @param {number} p2 - The ending point of the curve.
+        * @returns {number} The calculated point on the quadratic Bézier curve at parameter `t`.
+        *
+        * @example
+        * // Calculate the point on the Bézier curve defined by (0, 0), (0.5, 1), and (1, 0) at t = 0.5
+        * let point = bezierDegree2(0.5, 0, 0.5, 1);
+        * console.log(point); // Outputs: 0.5
+        *
+        * @example
+        * // Calculate the point on the Bézier curve defined by (1, 1), (2, 3), and (4, 1) at t = 0.25
+        * let point = bezierDegree2(0.25, 1, 2, 4);
+        * console.log(point); // Outputs: 1.875
+        */
+        function bezierDegree2(t, p0, p1, p2){
+            return (1-t)*(1-t)*p0 + 2*t*(1-t)*p1 + t*t*p2
+        }
+
+
+        /**
+        * Calculates the point on a cubic Bézier curve at a given parameter `t`.
+        *
+        * A cubic Bézier curve is defined by four points: the start point `p0`,
+        * two control points `p1` and `p2`, and the end point `p3`. The function uses the parameter `t`
+        * to compute the position along the curve.
+        *
+        * @param {number} t - The parameter along the Bézier curve, typically in the range [0, 1].
+        * @param {number} p0 - The starting point of the curve.
+        * @param {number} p1 - The first control point of the curve.
+        * @param {number} p2 - The second control point of the curve.
+        * @param {number} p3 - The ending point of the curve.
+        * @returns {number} The calculated point on the cubic Bézier curve at parameter `t`.
+        *
+        * @example
+        * // Calculate the point on the Bézier curve defined by (0, 0), (1, 2), (2, 2), and (3, 0) at t = 0.5
+        * let point = bezierDegree3(0.5, 0, 1, 2, 3);
+        * console.log(point); // Outputs: 1.5
+        *
+        * @example
+        * // Calculate the point on the Bézier curve defined by (0, 0), (1, 3), (3, 1), and (4, 0) at t = 0.75
+        * let point = bezierDegree3(0.75, 0, 1, 3, 4);
+        * console.log(point); // Outputs: 1.6875
+        */
+        function bezierDegree3(t, p0, p1, p2, p3){
+            return Math.pow((1-t),3)*p0 + 3*t*(1-t)*(1-t)*p1 + 3*t*t*(1-t)*p2 +Math.pow(t, 3)*p3
+        }
+
+
+        /**
+        * Constructs a cubic Bézier curve command string based on user inputs from the HTML document.
+        *
+        * This function retrieves values from input elements with the class name "shifter" and calculates 
+        * the control points for the Bézier curve. The curve starts at (0, 981) and the end point is 
+        * determined by the `wordSize` input. The calculated curve command is returned as a string.
+        *
+        * The curve segments are created using the `C` (cubic Bézier curve) and `S` (smooth cubic Bézier curve) commands,
+        * based on the number of "shifter" inputs provided.
+        *
+        * @returns {string} The constructed Bézier curve command string.
+        *
+        * @example
+        * // Assuming the HTML has elements with the class "shifter" and an input with id "sizeWord"
+        * var curve = getCurve();
+        * console.log(curve); // Outputs: M0,981 C... (a string representing the Bézier curve commands)
+        */
+        function getCurve(){
+            var bezCurve = "M0,981 C"
+            var shifter = document.getElementsByClassName("shifter")
+            var wordSize = document.getElementById('sizeWord').value
+            var n = shifter.length/4
+            var partition = wordSize / n
+            var shifterCount = 0
+            for(var i = 0; i < n; ++i){
+                if(i == 0){
+                    bezCurve = bezCurve + (shifter[shifterCount+1].value*wordSize*0.1 + partition/3) + ", " + (shifter[shifterCount].value*-wordSize*0.2 + 981)
+                    bezCurve = bezCurve +  ", " + (shifter[shifterCount+3].value*wordSize*0.1 + (partition*2)/3) + ", " + (shifter[shifterCount+2].value*-wordSize*0.2 + 981) + ", "
+                    //bezCurve = bezCurve +  ", " + (shifter[shifterCount+5].value*300 + partition) + ", " + (shifter[shifterCount+4].value*-600 + 981)
+                    shifterCount = 4
+                }
+                else{
+                    bezCurve = bezCurve + (shifter[shifterCount+1].value*wordSize*0.1 + i*partition) + ", " + (shifter[shifterCount].value*-wordSize*0.2 + 981) + " S" 
+                    bezCurve = bezCurve + (shifter[shifterCount+3].value*wordSize*0.1 + i*partition + (partition*2)/3) + ", " + (shifter[shifterCount+2].value*-wordSize*0.2 + 981) + ", "
+                    shifterCount = shifterCount + 4
+                }
+            }
+            bezCurve = bezCurve  + wordSize + ", 981Z"
+            return bezCurve
+        }
+        
+
+        /**
+        * Formats a list of absolute points and their relevant information into two tables.
+        *
+        * This function processes a list of absolute curve points (`ab`) and computes additional
+        * information for each point, including its distance to a reference line, the command number,
+        * adjusted t values, and the segment of the curve it is located in.
+        *
+        * The output consists of two arrays:
+        * - `pointsTableInfo`: Each entry contains an array with point coordinates, distance to the line,
+        *   command number, adjusted t value, and segment index.
+        * - `commandTable`: A list of commands associated with the points.
+        *
+        * Example of `pointsTableInfo` format:
+        *  row 1 = [[728, 404], -537, 0, 0.38966666666666666, 0]
+        *  where:
+        *      [[x,y], distance to line, command number, adjusted t value, segment index]
+        *
+        * @param {Array} ab - A 2D array representing absolute curve points, where each inner array contains
+        *                     command type followed by x and y coordinates.
+        * @param {Array} absoluteCurveList - A list containing absolute curve points used for calculations.
+        *
+        * @returns {Array} An array containing two elements:
+        *                  1. `pointsTableInfo` - A nested array of point information.
+        *                  2. `commandTable` - An array of command types corresponding to the points.
+        *
+        * @example
+        * var absolutePoints = [['M', 0, 0], ['L', 100, 100]];
+        * var absoluteCurveList = [['M', 0, 0], ['C', 50, 50, 150, 150, 200, 200]];
+        * var result = formatAbsoluteList(absolutePoints, absoluteCurveList);
+        * console.log(result); // Outputs two arrays: pointsTableInfo and commandTable
+        */
+        function formatAbsoluteList(ab, absoluteCurveList){
+            /*
+            returns two tables, the first a table of all the points with there relevant information
+            ex: row 1 = [[728, 404], -537               , 0             , 0.38966666666666666   , 0]
+            where:      [[x,y]     , distance to lign   ,command number , adjusted t value      , segment of the curve it is located in]
+            */
+            var pointsTableInfo = []
+            var commandTable = []
+            var n = absoluteCurveList.length - 2
+            var  d = get_distances(ab)
+            var  t = getT(ab)
+            var counter = 0
+            for (var i = 0; i < ab.length; ++i){
+                commandTable.push(ab[i][0])
+                for (var j = 1; j < ab[i].length; j = j + 2){
+                    var temp = []
+                    temp.push([parseFloat(ab[i][j]), parseFloat(ab[i][j+1])])
+                    temp.push(d[counter])
+                    temp.push(i)
+                    
+                    for(var k = 1; k <= n; ++k){
+                        if(t[counter] <= k/n){
+                            temp.push(t[counter]*(n) - k + 1)
+                            temp.push(k)
+                            break
+                        }
+                    }
+                    ++counter
+                    pointsTableInfo.push(temp)
+                    
+                }
+            }
+
+            return [pointsTableInfo, commandTable]
+        }
+
+
+        /**
+        * Draws a curve based on user inputs and displays it in SVG containers.
+        *
+        * This function clears previous SVG content, generates a new curve using the `getCurve` function,
+        * and appends the curve as a path to the specified SVG container. It also converts the relative curve
+        * points to absolute points and adds circles to represent key points and control points of the curve.
+        * 
+        * The following actions are performed:
+        * 1. Clears the content of the SVG containers.
+        * 2. Retrieves the curve path string.
+        * 3. Appends the curve path to the main SVG container with a specified color.
+        * 4. Converts relative curve points to absolute points.
+        * 5. Iterates through the absolute points and adds circles to represent the points based on the command type:
+        *    - 'M' (Move To) commands create small circles at the start point.
+        *    - 'C' (Cubic Bezier Curve) commands create circles at the start point, control points, and end point.
+        *    - Other commands create circles for points, with varying sizes based on command type.
+        *
+        * @returns {void} This function does not return a value. It modifies the DOM directly to display the curve.
+        *
+        * @example
+        * drawCurve(); // Draws the current curve based on user input and updates the SVG containers.
+        */
+        function drawCurve(){
+            var wordDisplayDiv1 = document.getElementById("svgContainer");
+            wordDisplayDiv1.innerHTML = "";
+            var wordDisplayDiv2 = document.getElementById("newSvgContainer");
+            wordDisplayDiv2.innerHTML = "";
+            var curve = getCurve()
+            appendPath(curve.slice(0,curve.length - 1), 'red', 0)
+            var bc = relative_to_absolute(curve)
+            
+            for(var i = 0; i < bc.length - 1; ++i){
+                if(bc[i][0] == "M"){
+                    addCircle([bc[i][1], bc[i][2]], 2, 0)
+                    
+                }
+                else if(bc[i][0] == "C"){
+                    addCircle([bc[i][1], bc[i][2]], 1, 0)
+                    addCircle([bc[i][3], bc[i][4]], 1, 0)
+                    addCircle([bc[i][5], bc[i][6]], 2, 0)
+                }
+                else{
+                    addCircle([bc[i][1], bc[i][2]], 1, 0)
+                    addCircle([bc[i][3], bc[i][4]], 2, 0)
+                }
+            }
+
+        }
+
+
+        /**
+        * Identifies edges in a given SVG path string and computes the new path with necessary adjustments.
+        *
+        * This function processes an SVG path string to detect specific patterns and relationships
+        * between points. It modifies the path based on identified left and right connections and 
+        * generates a new relative path string. It also calculates the coordinates for right points 
+        * based on the specified input points.
+        * 
+        * The following steps are performed:
+        * 1. Converts the input path from absolute to relative coordinates.
+        * 2. Determines the top and lower points from the input `points` array.
+        * 3. Iterates through the absolute path commands to identify specific edge patterns:
+        *    - Checks for patterns such as horizontal and vertical line commands.
+        *    - Adjusts the path based on the identified connections, updating points accordingly.
+        * 4. Constructs a final path string based on modifications made during the iteration.
+        * 5. Computes right points based on the final path and returns them.
+        *
+        * @param {string} str - The SVG path string to analyze and modify.
+        * @param {Array<Array<number>>} points - An array of two points (each represented by [x, y] coordinates) 
+        *                                         to determine top and lower connections. Defaults to [[0, 0], [0, 0]].
+        * @param {number} addOffset - An additional offset to apply to the points when calculating new positions. 
+        *                             Defaults to 0.
+        * @param {any} patern - An additional parameter, the usage of which is not specified in the context provided.
+        *
+        * @returns {Array} An array containing two elements:
+        *                  - The modified SVG path string in relative format.
+        *                  - An array of right points after processing.
+        *
+        * @example
+        * const newPath = identifyEdges("M100,100 L200,200", [[100, 100], [200, 200]], 10);
+        * console.log(newPath); // Outputs the modified path and right points.
+        */
+        function identifyEdges(str, points = [[0,0],[0,0]],addOffset = 0, patern){
+            var connection = [["h", '100'], ['v', '-80'], ["h", '-100']]
+            var tempString = absolute_to_relative(str,0,0)
+            var relativeString = absolute_to_relative(str, 0,[], 1)
+            console.log(relativeString)
+            var absoluteString = relative_to_absolute(tempString[0])
+            if(points[0][1] > points[1][1]){
+                topPoint = points[1]
+                lowerPoint = points[0]
+            }
+            else{
+                topPoint = points[0]
+                lowerPoint = points[1]
+            }
+            var currentTopPoint = []
+            var currentLowerPoint = []
+            var p1 = []
+            var p2 = []
+            var spacing = 0
+            var rightPoints = []
+            var Left = []
+            var Right = []
+            var newPath = []
+            var lastM = []
+            var indexLastM = -1
+            var temp = []
+            var offset = 0
+            var connectionIndex = []
+            var boolIsLeft = false
+            for(var i = 0; i < absoluteString.length; ++i){
+                if(absoluteString[i][0] == 'M' || absoluteString[i][0] == 'm'){
+                    lastM = absoluteString[i]
+                    indexLastM = i
+                }
+                if(relativeString[i][0] == ["l"] && relativeString[i][1] == ["20"] && relativeString[i][2] == ["-20"]){
+                    if(relativeString[i - 1][0] == ["l"] && relativeString[i - 1][1] == ["0"] && relativeString[i - 1][2] == ["-60"]){
+                        // We are Left
+                        boolIsLeft = true
+                        newPath.pop()
+                        connectionIndex.push(newPath.length)
+                        connectionIndex.push(newPath.length + 1)
+                        connectionIndex.push(newPath.length + 2)
+                        currentTopPoint = absoluteString[i].slice(-2)
+                        currentLowerPoint = absoluteString[i-2].slice(-2)
+                        offset = topPoint[0] - currentLowerPoint[0] + addOffset
+                        spacing = (currentTopPoint[0] - topPoint[0] + offset)/3
+                        newPath.push(['C', topPoint[0] - offset + spacing, topPoint[1], topPoint[0] - offset + 2*spacing, topPoint[1], topPoint[0] - offset, topPoint[1]])
+                        newPath.push(['L', lowerPoint[0] - offset, lowerPoint[1]])
+                        spacing = (currentLowerPoint[0] - lowerPoint[0] + offset)/3
+                        newPath.push(['C', lowerPoint[0] - offset + spacing, lowerPoint[1], lowerPoint[0] - offset + 2*spacing, lowerPoint[1], currentLowerPoint[0], currentLowerPoint[1]])
+                        
+                    }
+                    else if(i == absoluteString.length - 1){
+                        // We are right
+                        temp = absoluteString[indexLastM + 1]
+                        rightPoints.push(temp.slice(-2))
+                        rightPoints.push(absoluteString[i-1].slice(-2))
+                        newPath.push(relativeString[i])
+                        
+                    }
+                    else if(relativeString[i + 1][0] == ["l"] && relativeString[i + 1][1] == ["0"] && relativeString[i + 1][2] == ["-60"]){
+                        // We are right
+                        rightPoints.push(absoluteString[i-1].slice(-2))
+                        rightPoints.push(absoluteString[i+1].slice(-2))
+                        newPath.push(relativeString[i])
+                        
+                    }
+                    else if(relativeString[i + 1][0] == ["m"] || relativeString[i + 1][0] == ["M"]){
+                        // We are right
+                        temp = absoluteString[indexLastM + 1]
+                        rightPoints.push(temp.slice(-2))
+                        rightPoints.push(absoluteString[i-1].slice(-2))
+                        newPath.push(relativeString[i])
+                    }
+
+                }
+                else if(relativeString[i][0] == ["l"] && relativeString[i][1] == ["-20"] && relativeString[i][2] == ["20"]){
+                    if(relativeString[i - 1][0] == ["l"] && relativeString[i - 1][1] == ["0"] && relativeString[i - 1][2] == ["60"]){
+                        // We are right
+                        rightPoints.push(absoluteString[i-2].slice(-2))
+                        rightPoints.push(absoluteString[i].slice(-2))
+                        newPath.push(relativeString[i])
+                        
+                    }
+                    else if(i == absoluteString.length - 1){
+                        // We are left
+                        boolIsLeft = true
+                        connectionIndex.push(newPath.length)
+                        connectionIndex.push(newPath.length + 1)
+                        connectionIndex.push(newPath.length + 2)
+                        temp = absoluteString[indexLastM + 1]
+                        newPath.splice(indexLastM + 1,1)
+                        newPath[indexLastM] = ["M", temp[1], temp[2]]
+                        currentTopPoint = absoluteString[i-1].slice(-2)
+                        currentLowerPoint = absoluteString[indexLastM + 1].slice(-2)
+                        offset = topPoint[0] - currentLowerPoint[0] + addOffset
+                        spacing = (currentTopPoint[0] - topPoint[0] + offset)/3
+                        newPath.push(['C', topPoint[0] - offset + spacing, topPoint[1], topPoint[0] - offset + 2*spacing, topPoint[1], topPoint[0] - offset, topPoint[1]])
+                        newPath.push(['L', lowerPoint[0] - offset, lowerPoint[1]])
+                        spacing = (currentLowerPoint[0] - lowerPoint[0] + offset)/3
+                        newPath.push(['C', lowerPoint[0] - offset + spacing, lowerPoint[1], lowerPoint[0] - offset + 2*spacing, lowerPoint[1], currentLowerPoint[0], currentLowerPoint[1]])
+                        
+                    }
+                    else if(relativeString[i + 1][0] == ["l"] && relativeString[i + 1][1] == ["0"] && relativeString[i + 1][2] == ["60"]){
+                        // We are left
+                        boolIsLeft = true
+                        connectionIndex.push(newPath.length)
+                        connectionIndex.push(newPath.length + 1)
+                        connectionIndex.push(newPath.length + 2)
+                        currentTopPoint = absoluteString[i-1].slice(-2)
+                        currentLowerPoint = absoluteString[i + 1].slice(-2)
+                        offset = topPoint[0] - currentLowerPoint[0] + addOffset
+                        spacing = (currentTopPoint[0] - topPoint[0] + offset)/3
+                        newPath.push(['C', topPoint[0] - offset + spacing, topPoint[1], topPoint[0] - offset + 2*spacing, topPoint[1], topPoint[0] - offset, topPoint[1]])
+                        newPath.push(['L', lowerPoint[0] - offset, lowerPoint[1]])
+                        spacing = (currentLowerPoint[0] - lowerPoint[0] + offset)/3
+                        newPath.push(['C', lowerPoint[0] - offset + spacing, lowerPoint[1], lowerPoint[0] - offset + 2*spacing, lowerPoint[1], currentLowerPoint[0], currentLowerPoint[1]])
+                        i = i + 1
+                    }
+                    else if(relativeString[i + 1][0] == ["m"] || relativeString[i + 1][0] == ["M"]){
+                        // We are left
+                        boolIsLeft = true
+                        temp = absoluteString[indexLastM + 1]
+                        newPath.splice(indexLastM + 1,1)
+                        newPath[indexLastM] = ["M", temp[1], temp[2]]
+                        connectionIndex.push(newPath.length)
+                        connectionIndex.push(newPath.length + 1)
+                        connectionIndex.push(newPath.length + 2)
+                        currentTopPoint = absoluteString[i-1].slice(-2)
+                        currentLowerPoint = absoluteString[indexLastM + 1].slice(-2)
+                        offset = topPoint[0] - currentLowerPoint[0] + addOffset
+                        spacing = (currentTopPoint[0] - topPoint[0] + offset)/3
+                        newPath.push(['C', topPoint[0] - offset + spacing, topPoint[1], topPoint[0] - offset + 2*spacing, topPoint[1], topPoint[0] - offset, topPoint[1]])
+                        newPath.push(['L', lowerPoint[0] - offset, lowerPoint[1]])
+                        spacing = (currentLowerPoint[0] - lowerPoint[0] + offset)/3
+                        newPath.push(['C', lowerPoint[0] - offset + spacing, lowerPoint[1], lowerPoint[0] - offset + 2*spacing, lowerPoint[1], currentLowerPoint[0], currentLowerPoint[1]])
+                        temp = relativeString[i + 1]
+                        newPath.push([temp[0], temp[1], parseFloat(temp[2]) - 60])
+                        i = i + 1
+                    }
+                }
+                else{
+                    newPath.push(relativeString[i])
+                }
+            }
+
+            
+            //offset = 0
+            var final_str = ''
+            for(var i = 0; i <newPath.length; ++i){
+                temp = newPath[i]
+                if(connectionIndex[0] >= i && connectionIndex[0]+2 <= i){
+                    final_str = final_str + temp[0] + temp[1]
+                    for(var j = 2; j <temp.length; ++j){
+                        final_str = final_str + ',' + temp[j]
+                    }
+                    final_str = final_str + ' '
+                }
+                else{
+                    final_str = final_str + temp[0] + temp[1]
+                    for(var j = 2; j <temp.length; ++j){
+                        final_str = final_str + ' ' + temp[j]
+                    }
+                    final_str = final_str + ' '
+                }
+            }
+            
+            if(rightPoints.length == 2){
+                rightPoints[0][0] = rightPoints[0][0] + topPoint[0]+ addOffset
+                rightPoints[1][0] = rightPoints[1][0] + topPoint[0]+ addOffset
+                var fs = absolute_to_relative(final_str, topPoint[0] + addOffset , connectionIndex)
+            }
+            else{
+                var fs = absolute_to_relative(final_str, topPoint[0] + addOffset , connectionIndex)
+                var ab = relative_to_absolute(fs[0])
+                var lr = getLeftandRightMost(ab)
+                rightPoints = [[lr[1], 0],[lr[1], 0]]
+                
+
+            }
+            return[fs[0], rightPoints]
+        }
+
+
+        /**
+        * Adjusts the points of an SVG path to align with a defined curve based on a specified percentage.
+        *
+        * The function first converts the input path from relative to absolute coordinates. It then
+        * retrieves a predefined curve and visualizes it. After that, it calculates new points along 
+        * the curve based on the original path points and the given percentage, adjusting for vertical 
+        * displacement when necessary. Finally, it generates and returns a new SVG path string that 
+        * reflects these adjustments.
+        *
+        * @param {string} str - The original SVG path string in relative coordinates that needs to be adjusted.
+        * @param {number} [percentage=0] - An optional parameter that defines the percentage to adjust 
+        *                                    the points of the SVG path along the curve. The default is 0.
+        * 
+        * @returns {string} A new SVG path string with adjusted points that align with the defined curve.
+        */
+        function getNewPoints(str, percentage=0){
+            var ab = relative_to_absolute(str)
+            var curve = getCurve()
+            appendPath(curve.slice(0,curve.length - 1), 'red', 0)
+            var bc = relative_to_absolute(curve)
+            var hell = formatAbsoluteList(ab, bc)
+            var pointsTableInfo = hell[0]
+            var commandTable = hell[1]
+            for(var i = 0; i < bc.length; ++i){
+                if(bc[i][0] == "M"){
+                    addCircle([bc[i][1], bc[i][2]], 2)
+                }
+                else if(bc[i][0] == "C"){
+                    addCircle([bc[i][1], bc[i][2]], 1)
+                    addCircle([bc[i][3], bc[i][4]], 1)
+                    addCircle([bc[i][5], bc[i][6]], 2)
+                }
+                else{
+                    addCircle([bc[i][1], bc[i][2]], 1)
+                    addCircle([bc[i][3], bc[i][4]], 2)
+                }
+            }
+            var newPath = []
+            var counter = 0
+            var p0;
+            var p1;
+            var p2;
+            var p3;
+            var p02 = []
+            var p12 = []
+            var point
+            var d
+            var commandNumber
+            var t
+            var segmentNumber
+            var A = 0
+            var B = 0
+            var N = 0
+            var a = 0
+            var b = 0
+            var c = 0
+            var newX = 0
+            var newY = 0
+            var currentCommandNumber = 0
+            var temp = ["M"]
+            for (var i = 0; i < pointsTableInfo.length; ++i){
+                point = pointsTableInfo[i][0]
+                d = pointsTableInfo[i][1]
+                commandNumber = pointsTableInfo[i][2]
+                t = pointsTableInfo[i][3]
+                segmentNumber = pointsTableInfo[i][4]
+                if(currentCommandNumber != commandNumber){
+                    newPath.push(temp)
+                    temp = [commandTable[commandNumber]]
+                    currentCommandNumber = commandNumber
+                }
+
+              
+                if(segmentNumber == 1){
+                    p0 = [parseFloat(bc[0][1]),parseFloat(bc[0][2])]
+                    p1 = [parseFloat(bc[1][1]),parseFloat(bc[1][2])]
+                    p2 = [parseFloat(bc[1][3]),parseFloat(bc[1][4])]
+                    p3 = [parseFloat(bc[1][5]),parseFloat(bc[1][6])]
+                }
+                else{
+                    p0 = [parseFloat(bc[segmentNumber-1][bc[segmentNumber-1].length - 2]),parseFloat(bc[segmentNumber-1][bc[segmentNumber-1].length - 1])]
+                    pTemp = [parseFloat(bc[segmentNumber-1][bc[segmentNumber-1].length - 4]),parseFloat(bc[segmentNumber-1][bc[segmentNumber-1].length - 3])]
+                    p2 = [parseFloat(bc[segmentNumber][1]),parseFloat(bc[segmentNumber][2])]
+                    p3 = [parseFloat(bc[segmentNumber][3]),parseFloat(bc[segmentNumber][4])]
+                    p1 = [p0[0] + (p0[0] - pTemp[0]), p0[1] + (p0[1] - pTemp[1])]
+                }
+
+                if(d == 0){
+                    newX = bezierDegree3(t, p0[0], p1[0], p2[0], p3[0])
+                    newY = bezierDegree3(t, p0[1], p1[1], p2[1], p3[1])
+                }
+                else{
+                    p02 = [bezierDegree2(t, p0[0], p1[0], p2[0]), bezierDegree2(t, p0[1], p1[1], p2[1])]
+                    p12 = [bezierDegree2(t, p1[0], p2[0], p3[0]), bezierDegree2(t, p1[1], p2[1], p3[1])]
+                    A = bezierDegree3(t, p0[0], p1[0], p2[0], p3[0])
+                    B = bezierDegree3(t, p0[1], p1[1], p2[1], p3[1])
+                    if(p12[1] == p02[1]){
+                        newX = A
+                        newY = B + d
+                    }
+                    else{
+                        N = (-p12[0] + p02[0])/(p12[1] - p02[1])
+                        a = (1 + Math.pow(N, 2))
+                        b = - (2 * A * (1 + Math.pow(N, 2)))
+                        c = Math.pow(A, 2) * (1 + Math.pow(N, 2)) - Math.pow(d, 2)
+
+                        if(N*d > 0){
+                            if(p12[0] < p02[0]){
+                                newX = (- b - Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                            else{
+                                newX = (- b + Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                        }
+                        else{
+                            if(p12[0] < p02[0]){
+                                newX = (- b + Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                            else{
+                                newX = (- b - Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                        }
+                        newY = N * newX + B - N * A
+                    }
+                }
+                temp.push(newX)
+                temp.push(newY)
+                if(i == pointsTableInfo.length - 1){
+                    newPath.push(temp)
+                }
+            }
+            var final = ""
+            for(var i = 0; i < newPath.length; ++i){
+                final += newPath[i][0]
+                if(newPath[i][0] == "Z"){
+                    continue
+                }
+                else{
+                    final += newPath[i][1]
+                    for(var j = 2; j < newPath[i].length; j++){
+                        final += "," + newPath[i][j]
+                    }
+                }
+                final += " "
+            }
+            
+            appendPath(final, "black", 1)
+            return final
+        }
+        
+
+        /**
+        * Generates an SVG path string for a circle based on a given center and radius.
+        *
+        * The circle is approximated using cubic Bézier curves, allowing for smooth rendering
+        * in SVG graphics. The algorithm calculates control points to define the shape of the
+        * circle using the specified radius.
+        *
+        * @param {number[]} center - An array containing the [x, y] coordinates of the circle's center.
+        * @param {number} radius - The radius of the circle.
+        * @returns {string} The SVG path data string representing the circle.
+        *
+        * @example
+        * // Create a circle path centered at (50, 50) with a radius of 30
+        * const circlePath = getCirclePath([50, 50], 30);
+        * console.log(circlePath); // Outputs the SVG path string for the circle
+        */
+        function getCirclePath(center, radius){
+            var circle_path = 'M'
+            var x = center[0] 
+            var y = center[1] 
+            var alpha = radius*(4*(2**0.5) - 4)/3
+            circle_path = circle_path + (x + radius) + ', ' + y + ' '
+            circle_path = circle_path +'C' + (x + radius) + ', ' + (y + alpha)
+            circle_path = circle_path +', ' + (x + alpha) + ', ' + (y + radius)
+            circle_path = circle_path +', ' + (x) + ', ' + (y + radius)
+            circle_path = circle_path +'C' + (x - alpha) + ', ' + (y + radius)
+            circle_path = circle_path +', ' + (x - radius) + ', ' + (y + alpha)
+            circle_path = circle_path +', ' + (x - radius) + ', ' + (y) 
+            circle_path = circle_path +'C' + (x - radius) + ', ' + (y - alpha)
+            circle_path = circle_path +', ' + (x - alpha) + ', ' + (y - radius)
+            circle_path = circle_path +', ' + (x) + ', ' + (y - radius) 
+            circle_path = circle_path +'C' + (x + alpha) + ', ' + (y - radius)
+            circle_path = circle_path +', ' + (x + radius) + ', ' + (y - alpha)
+            circle_path = circle_path +', ' + (x + radius) + ', ' + (y) 
+
+            return circle_path
+        }
+
+
+        /**
+        * Generates an SVG path string for a smaller circle based on a given center and radius.
+        *
+        * This function approximates the circle using cubic Bézier curves, scaling down the
+        * coordinates and radius by a factor of 10. The resulting path is suitable for rendering
+        * smaller circles in SVG graphics.
+        *
+        * @param {number[]} center - An array containing the [x, y] coordinates of the circle's center.
+        * @param {number} radius - The radius of the circle, which will be scaled down by a factor of 10.
+        * @returns {string} The SVG path data string representing the smaller circle.
+        *
+        * @example
+        * // Create a smaller circle path centered at (100, 100) with a radius of 30
+        * const smallCirclePath = getSmallCirclePath([100, 100], 30);
+        * console.log(smallCirclePath); // Outputs the SVG path string for the smaller circle
+        */
+        function getSmallCirclePath(center, radius){
+            var circle_path = 'M'
+            var x = center[0] /10
+            var y = center[1] /10
+            radius = radius / 10
+            var alpha = radius*(4*(2**0.5) - 4)/3
+            circle_path = circle_path + (x + radius) + ', ' + y + ' '
+            circle_path = circle_path +'C' + (x + radius) + ', ' + (y + alpha)
+            circle_path = circle_path +', ' + (x + alpha) + ', ' + (y + radius)
+            circle_path = circle_path +', ' + (x) + ', ' + (y + radius)
+            circle_path = circle_path +'C' + (x - alpha) + ', ' + (y + radius)
+            circle_path = circle_path +', ' + (x - radius) + ', ' + (y + alpha)
+            circle_path = circle_path +', ' + (x - radius) + ', ' + (y) 
+            circle_path = circle_path +'C' + (x - radius) + ', ' + (y - alpha)
+            circle_path = circle_path +', ' + (x - alpha) + ', ' + (y - radius)
+            circle_path = circle_path +', ' + (x) + ', ' + (y - radius) 
+            circle_path = circle_path +'C' + (x + alpha) + ', ' + (y - radius)
+            circle_path = circle_path +', ' + (x + radius) + ', ' + (y - alpha)
+            circle_path = circle_path +', ' + (x + radius) + ', ' + (y) 
+
+            return circle_path
+        }
+
+
+        /**
+        * Shrinks an SVG path by scaling down its coordinates by a factor of 10.
+        *
+        * This function first converts the input path from relative to absolute coordinates,
+        * then removes the last command (usually the closing "Z" command). It processes each
+        * command in the path, scaling the coordinates down by dividing them by 10, and
+        * reconstructs the path string with the modified coordinates.
+        *
+        * @param {string} path - The SVG path string to be shrunk, which can include relative commands.
+        * @returns {string} The shrunk SVG path string with coordinates scaled down by a factor of 10.
+        *
+        * @example
+        * // Shrink an SVG path to a smaller size
+        * const originalPath = "M10,10 C20,20 40,20 50,10 Z";
+        * const shrunkPath = shrunk_path(originalPath);
+        * console.log(shrunkPath); // Outputs the shrunk path string with coordinates divided by 10
+        */
+        function shrunk_path(path){
+            var shrunk_path = ""
+            path = relative_to_absolute(path)
+            path.pop()
+            for (var i = 0; i < path.length; ++i){
+                shrunk_path = shrunk_path + path[i][0]
+                for (var j = 1; j < path[i].length; ++j){
+                    shrunk_path = shrunk_path + parseFloat(path[i][j])/10 
+                    if(j != path[i].length -1){
+                        shrunk_path = shrunk_path + ', '
+                    }
+                    else{
+                        shrunk_path = shrunk_path + ' '
+                    }
+                }
+            }
+            return shrunk_path
+        }
+
+        
+        /**
+        * Generates new intersection points along a curve based on a list of letters,
+        * updating the visual representation of the connections between points.
+        *
+        * This function analyzes the spatial relationships between points defined 
+        * by a list of letters and their distances. It calculates potential intersection 
+        * points between the curve and small circles drawn around the points, appending 
+        * visual paths and updating the previous point for further calculations.
+        *
+        * @param {Array<string>} listOfLetters - An array of strings representing 
+        *   the letters, each corresponding to specific points and their distances.
+        *
+        * @returns {void} This function does not return a value. Instead, it modifies 
+        *   the visual output by appending paths based on the intersection calculations 
+        *   and connections found during processing.
+        *
+        * @example
+        * // Example usage:
+        * getNewPoints2(["A", "B", "C"]); // Updates the visual representation based on points A, B, and C
+        */
+        function getNewPoints2(listOfLetters){
+            var curve_path = shrunk_path(getCurve())
+            var temp = curve_path.split(' ')
+            var previousPoint = [parseFloat(temp[0].slice(1,-1)), parseFloat(temp[1])*10]
+            var radius
+            var circle_path
+            var invisibleDraw
+            var curve 
+            var circle
+            var intersectionPoints
+            var newIntersectionPoints
+            var pointToRemove
+            var A
+            var B
+            var connectorInfo
+
+
+            for(var i = 0; i < listOfLetters.length; ++ i){
+                var temp = getDistanceConnection(listOfLetters[i])
+                if(temp[0] < temp[2]){
+                    radius = 50
+                    circle_path = getSmallCirclePath(previousPoint, radius)
+                    //appendPath(getCirclePath(previousPoint, radius), 'red', 2)
+                    
+                    invisibleDraw = SVG('invisible-container')
+                    curve = invisibleDraw.path(curve_path)
+                    circle = invisibleDraw.path(circle_path)
+                    intersectionPoints = circle.intersectsPath(curve)
+                    for(var j = 0; j < intersectionPoints.length; ++j){
+                        if(intersectionPoints[j].x*10 > previousPoint[0]){
+                            //appendPath("M"+previousPoint[0] + ' ' + previousPoint[1] + ' L' + (intersectionPoints[j].x*10) + ' ' + intersectionPoints[j].y*10, 'blue', 2)
+                            previousPoint = [intersectionPoints[j].x*10, intersectionPoints[j].y*10]
+                            //addCircle([intersectionPoints[j].x*10, intersectionPoints[j].y*10], 'x1', 2)
+                        }
+                    }
+                    
+                    connectorInfo = []
+                    //there is no space or connection so only one intersection point is needed
+
+                    radius = temp[1] - temp[0]
+                    circle_path = getSmallCirclePath(previousPoint, radius)
+                    //appendPath(getCirclePath(previousPoint, radius), 'red', 2)
+
+                    invisibleDraw = SVG('invisible-container')
+                    curve = invisibleDraw.path(curve_path)
+                    circle = invisibleDraw.path(circle_path)
+                    intersectionPoints = circle.intersectsPath(curve)
+                    
+
+                    for(var j = 0; j < intersectionPoints.length; ++j){
+                        if(intersectionPoints[j].x*10 > previousPoint[0]){
+                            //appendPath("M"+previousPoint[0] + ' ' + previousPoint[1] + ' L' + (intersectionPoints[j].x*10) + ' ' + (intersectionPoints[j].y*10), 'green', 2)
+                            testFunction(listOfLetters[i], "M"+previousPoint[0] + ' ' + previousPoint[1] + ' L' + (intersectionPoints[j].x*10) + ' ' + (intersectionPoints[j].y*10))
+
+                            connectorInfo.push(true)
+                            connectorInfo.push([intersectionPoints[j].x*10, intersectionPoints[j].y*10])
+                            connectorInfo.push([(intersectionPoints[j].y*10 - previousPoint[1])/(intersectionPoints[j].x*10 - previousPoint[0]), previousPoint[1] - ((intersectionPoints[j].y*10 - previousPoint[1])/(intersectionPoints[j].x*10 - previousPoint[0]))*previousPoint[0]])
+                            previousPoint = [intersectionPoints[j].x*10, intersectionPoints[j].y*10]
+                        }
+                    }
+
+
+
+
+                }
+                else{
+                    radius = 100
+                    circle_path = getSmallCirclePath(previousPoint, radius)
+                    //appendPath(getCirclePath(previousPoint, radius), 'blue', 2)
+                    
+                    invisibleDraw = SVG('invisible-container')
+                    curve = invisibleDraw.path(curve_path)
+                    circle = invisibleDraw.path(circle_path)
+                    intersectionPoints = circle.intersectsPath(curve)
+                    
+
+                    for(var j = 0; j < intersectionPoints.length; ++j){
+                        if(intersectionPoints[j].x*10 > previousPoint[0]){
+                            //appendPath("M"+previousPoint[0] + ' ' + previousPoint[1] + ' L' + (intersectionPoints[j].x*10) + ' ' + intersectionPoints[j].y*10, 'blue', 2)
+                            previousPoint = [intersectionPoints[j].x*10, intersectionPoints[j].y*10]
+                            //addCircle([intersectionPoints[j].x*10, intersectionPoints[j].y*10], 'x1', 2)
+                        }
+                    }
+                    
+                    radius = temp[2] - temp[1]
+                    circle_path = getSmallCirclePath(previousPoint, radius)
+                    //appendPath(getCirclePath(previousPoint, radius), 'red', 2)
+
+                    invisibleDraw = SVG('invisible-container')
+                    curve = invisibleDraw.path(curve_path)
+                    circle = invisibleDraw.path(circle_path)
+                    intersectionPoints = circle.intersectsPath(curve)
+
+                    for(var j = 0; j < intersectionPoints.length; ++j){
+                        if(intersectionPoints[j].x*10 > previousPoint[0]){
+                            //appendPath("M"+previousPoint[0] + ' ' + previousPoint[1] + ' L' + intersectionPoints[j].x*10 + ' ' + intersectionPoints[j].y*10, 'green', 2)
+                            testFunction(listOfLetters[i], "M"+previousPoint[0] + ' ' + previousPoint[1] + ' L' + (intersectionPoints[j].x*10) + ' ' + (intersectionPoints[j].y*10))
+                            
+                            drawConnection(connectorInfo, previousPoint, [(intersectionPoints[j].y*10 - previousPoint[1])/(intersectionPoints[j].x*10 - previousPoint[0]), previousPoint[1] - ((intersectionPoints[j].y*10 - previousPoint[1])/(intersectionPoints[j].x*10 - previousPoint[0]))*previousPoint[0]])
+                            
+                            
+                            
+                            connectorInfo = []
+                            connectorInfo.push(false)
+                            connectorInfo.push([intersectionPoints[j].x*10, intersectionPoints[j].y*10])
+                            connectorInfo.push([(intersectionPoints[j].y*10 - previousPoint[1])/(intersectionPoints[j].x*10 - previousPoint[0]), previousPoint[1] - ((intersectionPoints[j].y*10 - previousPoint[1])/(intersectionPoints[j].x*10 - previousPoint[0]))*previousPoint[0]])
+                            
+                            
+                            
+                            
+                            previousPoint = [intersectionPoints[j].x*10, intersectionPoints[j].y*10]
+                        }
+                    }
+                }
+            }
+            return
+        }
+
+        /**
+        * Draws a connection between two points based on provided connector information and an equation.
+        *
+        * This function calculates the upper and lower points for the left and right connectors 
+        * and creates a cubic Bezier path to visually represent the connection in an SVG. 
+        * The resulting path is appended to the SVG for rendering.
+        *
+        * @param {Array} connectorInfo - An array containing information about the left connector.
+        *   The structure is as follows:
+        *   - connectorInfo[0] (boolean): Indicates if the left connection is "weird."
+        *   - connectorInfo[1] (Array<number>): The coordinates [x, y] of the left connection point.
+        *   - connectorInfo[2] (Array<number>): The slope and y-intercept of the left equation.
+        *
+        * @param {Array<number>} point - The coordinates [x, y] of the right connection point.
+        *
+        * @param {Array<number>} equation - An array representing the slope and y-intercept of the right equation.
+        *   - equation[0] (number): The slope of the right connection.
+        *   - equation[1] (number): The y-intercept of the right connection.
+        *
+        * @returns {void} This function does not return any value. It directly modifies the SVG paths 
+        * by appending a new shape to represent the connection.
+        *
+        * @example
+        * // Draw a connection between two points with given connector information and equation
+        * const connectorInfo = [true, [100, 200], [0.5, 50]];
+        * const point = [150, 250];
+        * const equation = [1, 30];
+        * drawConnection(connectorInfo, point, equation);
+        * // The function will update the SVG with a new path representing the connection.
+        */
+        function drawConnection(connectorInfo, point, equation){
+            var weird = connectorInfo[0]
+            var leftPointA = connectorInfo[1][0]
+            var leftPointB = connectorInfo[1][1]
+            var leftEquationSlope =connectorInfo[2][0]
+            var leftEquationBias =connectorInfo[2][1]
+            var rightPointA = point[0]
+            var rightPointB = point[1]
+            var rightEquationSlope = equation[0]
+            var rightEquationBias = equation[1]
+
+            var leftLowerPoint
+            var leftUpperPoint
+            var rightLowerPoint
+            var rightUpperPoint
+            var UpperIntersection1
+            var UpperIntersection2
+            var LowerIntersection1
+            var LowerIntersection2
+            var temp
+
+
+
+
+            if(weird){
+                if(Math.abs(leftEquationSlope) < 0.0000001){
+                    leftUpperPoint = [leftPointA, leftPointB-40]
+                    leftLowerPoint = [leftPointA-20, leftPointB+40]
+                }
+                else if(leftEquationSlope < 0){
+                    leftUpperPoint = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, true)
+                    temp = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, false)
+                    leftLowerPoint = getCoordiantesFromRadius(leftEquationSlope, temp[1] - leftEquationSlope*temp[0], temp[0], temp[1], 20, true)
+                }
+                else{
+                    leftUpperPoint = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, false)
+                    temp = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, true)
+                    leftLowerPoint = getCoordiantesFromRadius(leftEquationSlope, temp[1] - leftEquationSlope*temp[0], temp[0], temp[1], 20, true)
+                }
+                
+            }
+            else{
+                if(Math.abs(leftEquationSlope) < 0.0000001){
+                    leftUpperPoint = [leftPointA+20, leftPointB-40]
+                    leftLowerPoint = [leftPointA, leftPointB+40]
+                }
+                else if(leftEquationSlope < 0){
+                    leftLowerPoint = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, false)
+                    temp = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, true)
+                    leftUpperPoint = getCoordiantesFromRadius(leftEquationSlope, temp[1] - leftEquationSlope*temp[0], temp[0], temp[1], 20, false)
+                }
+                else{
+                    leftLowerPoint = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, true)
+                    temp = getCoordiantesFromRadius(-1/leftEquationSlope, leftPointB +(1/leftEquationSlope)*leftPointA, leftPointA, leftPointB, 40, false)
+                    leftUpperPoint = getCoordiantesFromRadius(leftEquationSlope, temp[1] - leftEquationSlope*temp[0], temp[0], temp[1], 20, false)
+                }
+                
+            }
+            
+            if(Math.abs(rightEquationSlope) < 0.0000001){
+                rightLowerPoint = [rightPointA, rightPointB+40]
+                rightUpperPoint = [rightPointA+20, rightPointB-40]
+            }
+            else if(rightEquationSlope < 0){
+                rightLowerPoint = getCoordiantesFromRadius(-1/rightEquationSlope, rightPointB +(1/rightEquationSlope)*rightPointA, rightPointA, rightPointB, 40, false)
+                temp = getCoordiantesFromRadius(-1/rightEquationSlope, rightPointB +(1/rightEquationSlope)*rightPointA, rightPointA, rightPointB, 40, true)
+                rightUpperPoint = getCoordiantesFromRadius(rightEquationSlope, temp[1] - rightEquationSlope*temp[0], temp[0], temp[1], 20, false)
+            }
+            else{
+                rightLowerPoint = getCoordiantesFromRadius(-1/rightEquationSlope, rightPointB +(1/rightEquationSlope)*rightPointA, rightPointA, rightPointB, 40, true)
+                temp = getCoordiantesFromRadius(-1/rightEquationSlope, rightPointB +(1/rightEquationSlope)*rightPointA, rightPointA, rightPointB, 40, false)
+                rightUpperPoint = getCoordiantesFromRadius(rightEquationSlope, temp[1] - rightEquationSlope*temp[0], temp[0], temp[1], 20, false)
+            }
+            if(Math.abs(rightEquationSlope) < 0.0000001){
+                if(Math.abs(leftEquationSlope) < 0.0000001){
+                    var str = 'M' + leftLowerPoint[0] + ', ' + leftLowerPoint[1] + ' L' + rightLowerPoint[0] + ', ' + rightLowerPoint[1] + ' L' + rightUpperPoint[0] + ', ' + rightUpperPoint[1] + ' L' + leftUpperPoint[0] + ', ' + leftUpperPoint[1] + ' Z'
+                    appendPath(str, 'black', 2)
+                    return
+                }
+            }
+
+            var equationLeftUpper = [leftEquationSlope, leftUpperPoint[1] - leftEquationSlope*leftUpperPoint[0]]
+            var equationRightUpper = [rightEquationSlope, rightUpperPoint[1] - rightEquationSlope*rightUpperPoint[0]]
+            
+            temp = leftUpperPoint[0] + (rightUpperPoint[0] - leftUpperPoint[0])/3
+            UpperIntersection1 = [temp, temp*equationLeftUpper[0] + equationLeftUpper[1]]
+            temp = leftUpperPoint[0] + (rightUpperPoint[0] - leftUpperPoint[0])*2/3
+            UpperIntersection2 = [temp, temp*equationRightUpper[0] + equationRightUpper[1]]
+
+            var equationLeftLower = [leftEquationSlope, leftLowerPoint[1] - leftEquationSlope*leftLowerPoint[0]]
+            var equationRightLower = [rightEquationSlope, rightLowerPoint[1] - rightEquationSlope*rightLowerPoint[0]]
+
+            temp = leftLowerPoint[0] + (rightLowerPoint[0] - leftLowerPoint[0])/3
+            LowerIntersection1 = [temp, temp*equationLeftLower[0] + equationLeftLower[1]]
+            temp = leftLowerPoint[0] + (rightLowerPoint[0] - leftLowerPoint[0])*2/3
+            LowerIntersection2 = [temp, temp*equationRightLower[0] + equationRightLower[1]]
+
+
+
+            var str = 'M' + leftLowerPoint[0] + ', ' + leftLowerPoint[1] + ' C' + LowerIntersection1[0] + ', ' + LowerIntersection1[1] + ', ' +LowerIntersection2[0] + ', ' + LowerIntersection2[1] + ', ' + rightLowerPoint[0] + ', ' + rightLowerPoint[1] + ' L' + rightUpperPoint[0] + ', ' + rightUpperPoint[1] + ' C' + UpperIntersection2[0] + ', ' + UpperIntersection2[1] + ', ' + UpperIntersection1[0] + ', ' + UpperIntersection1[1] + ', ' + leftUpperPoint[0] + ', ' + leftUpperPoint[1] + ' Z'
+            appendPath(str, 'black', 2)
+        }
+
+
+        /**
+        * Calculates the coordinates of a point on a line defined by a slope and bias 
+        * that is a specified distance from a given point.
+        *
+        * This function solves for the x-coordinate of a point that is at a certain distance 
+        * from the point (A, B) along the line defined by the given slope. The distance can be 
+        * either in the positive or negative direction relative to the line.
+        *
+        * @param {number} slope - The slope of the line (rise/run).
+        * @param {number} bias - The y-intercept of the line (the value of y when x = 0).
+        * @param {number} A - The x-coordinate of the reference point from which to calculate.
+        * @param {number} B - The y-coordinate of the reference point from which to calculate.
+        * @param {number} l - The distance from the point (A, B) to the calculated point.
+        * @param {boolean} [positive=true] - Determines the direction of the distance. If true, 
+        *   the function calculates the point in the direction of the slope; if false, it calculates 
+        *   in the opposite direction.
+        *
+        * @returns {Array<number>} An array containing the x and y coordinates of the calculated point.
+        *   The array format is [x, y].
+        *
+        * @throws {Error} If the distance calculated exceeds the possible distance along the line,
+        *   this function may return undefined or incorrect values due to non-real solutions for 
+        *   the quadratic equation derived from the circle's intersection.
+        *
+        * @example
+        * // Get coordinates from a slope of 2, bias of 3, point (4, 5), and distance of 10
+        * const coordinates = getCoordiantesFromRadius(2, 3, 4, 5, 10);
+        * console.log(coordinates); // Outputs: [x, y] where x and y are the calculated coordinates
+        */
+        function getCoordiantesFromRadius(slope, bias, A, B, l, positive = true){
+            var x
+            var a = (1 + Math.pow(slope, 2))
+            var b = - (2 * A * (1 + Math.pow(slope, 2)))
+            var c = Math.pow(A, 2) * (1 + Math.pow(slope, 2)) - Math.pow(l, 2)
+            var delta = Math.pow(b, 2) - 4*a*c
+            if(positive){
+                x = (- b - Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+            }
+            else{
+                x = (- b + Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+            }
+            return [x, slope*x + bias]
+        }
+
+
+        /**
+        * Calculates normalized t-values for points in a list based on their position 
+        * relative to the leftmost and rightmost values.
+        *
+        * If the parameter `bo` is set to 1, the function computes the t-values for each 
+        * element in the nested list `lst`. The t-value is calculated as the normalized 
+        * distance of each point from the leftmost point, divided by the range of values 
+        * (rightmost - leftmost + 1).
+        *
+        * @param {Array<Array<number>>} lst - A nested array where each sub-array contains 
+        *   numeric values. The function processes only the odd-indexed elements in each 
+        *   sub-array (considering 1-based indexing).
+        * @param {number} [bo=0] - A flag to indicate whether to calculate the t-values. 
+        *   If set to 1, the function performs the calculation; if 0, it returns undefined.
+        * @param {Array<number>} [idk=[]] - An array containing two elements that represent 
+        *   the range of interest. The second element (idk[1]) should be greater than the 
+        *   first (idk[0]) for correct computation.
+        *
+        * @returns {Array<number>} An array of normalized t-values corresponding to the 
+        *   input list, or undefined if `bo` is not equal to 1.
+        *
+        * @throws {Error} If the `idk` array does not contain exactly two elements or if 
+        *   the second element is less than the first, this function may produce incorrect 
+        *   results or throw an error.
+        *
+        * @example
+        * // Example usage:
+        * const points = [[0, 10, 20], [1, 15, 25], [2, 30, 40]];
+        * const range = [0, 40];
+        * const tValues = getOtherT(points, 1, range);
+        * console.log(tValues); // Outputs the normalized t-values based on the given points
+        */
+        function getOtherT(lst, bo = 0, idk = []){
+            if(bo = 1){
+                var lr = getLeftandRightMost(lst)
+                var d = idk[1] - idk[0] + 1
+                var tValues = []
+                for(var i = 0; i < lst.length; ++i){
+                    for(var j = 1; j <lst[i].length; j += 2){
+                        var temp = (((lst[i][j] - lr[0]))/d)
+    
+                        tValues.push(temp)
+                    }
+                }
+                return tValues
+            }
+        }
+
+
+        /**
+        * Processes a given string representation of a path and a curve, modifying 
+        * the path based on specific conditions and returning the modified path.
+        *
+        * This function converts the string path and curve to absolute coordinates 
+        * and checks if certain conditions are met to determine how to manipulate 
+        * the path. It calculates distances, t-values, and new points based on 
+        * cubic Bezier curves, potentially appending the final path to a visual 
+        * representation.
+        *
+        * @param {string} str - A string representing the path to be processed. 
+        *   The format should be compatible with SVG path specifications.
+        * @param {string} curve - A string representing the curve against which 
+        *   the path is compared and modified.
+        * 
+        * @returns {string} The modified path as a string, which includes changes 
+        *   made based on the input parameters. If certain conditions aren't met, 
+        *   the function may return an unmodified path.
+        *
+        * @example
+        * // Example usage:
+        * const modifiedPath = testFunction("M10 10 L20 20", "M0 0 L30 30");
+        * console.log(modifiedPath); // Outputs the modified path based on calculations
+        */
+        function testFunction(str, curve){
+            var ab = relative_to_absolute(str)
+            var bc = relative_to_absolute(curve)
+            
+            if(Math.round(parseFloat(bc[1][2])) == bc[0][2]){
+                var ar = absolute_to_relative(str)[0]
+                var t = ar.split(' ')
+                t[1] = parseFloat(t[1]) + 40 + ''
+                t[0] = 'M' + (t[0].slice(1) - 60)
+                
+                appendPath(t.join(' '), "black", 2)
+                return t.join(' ')
+            }
+
+            var pointsTableInfo = []
+            var commandTable = []
+            var  d = get_distances(ab)
+            var  t = getOtherT(ab, 1, getDistanceConnection(str))
+            var counter = 0
+            for (var i = 0; i < ab.length; ++i){
+                commandTable.push(ab[i][0])
+                for (var j = 1; j < ab[i].length; j = j + 2){
+                    var temp = []
+                    temp.push([parseFloat(ab[i][j]), parseFloat(ab[i][j+1])])
+                    temp.push(d[counter])
+                    temp.push(i)
+                    temp.push(t[counter])
+
+                    ++counter
+                    pointsTableInfo.push(temp)
+                    
+                }
+            }
+
+            var slope
+            var bias
+            var temp2
+            var temp3
+            
+            var newPath = []
+            var counter = 0
+            var p0;
+            var p1;
+            var p2;
+            var p3;
+            var p02 = []
+            var p12 = []
+            var point
+            var d
+            var commandNumber
+            var t
+            var segmentNumber
+            var A = 0
+            var B = 0
+            var N = 0
+            var a = 0
+            var b = 0
+            var c = 0
+            var newX = 0
+            var newY = 0
+            var currentCommandNumber = 0
+            var temp = ["M"]
+            for (var i = 0; i < pointsTableInfo.length; ++i){
+                point = pointsTableInfo[i][0]
+                d = pointsTableInfo[i][1]
+                commandNumber = pointsTableInfo[i][2]
+                t = pointsTableInfo[i][3]
+                if(currentCommandNumber != commandNumber){
+                    newPath.push(temp)
+                    temp = [commandTable[commandNumber]]
+                    currentCommandNumber = commandNumber
+                }
+                
+                p0 = [parseFloat(bc[0][1]),parseFloat(bc[0][2])]
+                p3 = [parseFloat(bc[1][1]),parseFloat(bc[1][2])]
+
+                slope = (p3[1] - p0[1])/(p3[0] - p0[0]) 
+                bias = p0[1] - slope*p0[0]
+
+                temp2 = (p3[0] - p0[0])/3 + p0[0]
+                temp3 = (p3[0] - p0[0])*2/3 + p0[0]
+
+                p1 = [temp2, slope*temp2 + bias]
+                p2 = [temp3, slope*temp3 + bias]
+                
+
+                if(d == 0){
+                    newX = bezierDegree3(t, p0[0], p1[0], p2[0], p3[0])
+                    newY = bezierDegree3(t, p0[1], p1[1], p2[1], p3[1])
+                }
+                else{
+                    p02 = [bezierDegree2(t, p0[0], p1[0], p2[0]), bezierDegree2(t, p0[1], p1[1], p2[1])]
+                    p12 = [bezierDegree2(t, p1[0], p2[0], p3[0]), bezierDegree2(t, p1[1], p2[1], p3[1])]
+                    A = bezierDegree3(t, p0[0], p1[0], p2[0], p3[0])
+                    B = bezierDegree3(t, p0[1], p1[1], p2[1], p3[1])
+                    if(p12[1] == p02[1]){
+                        newX = A
+                        newY = B + d
+                    }
+                    else{
+                        N = (-p12[0] + p02[0])/(p12[1] - p02[1])
+                        a = (1 + Math.pow(N, 2))
+                        b = - (2 * A * (1 + Math.pow(N, 2)))
+                        c = Math.pow(A, 2) * (1 + Math.pow(N, 2)) - Math.pow(d, 2)
+
+                        if(N*d > 0){
+                            if(p12[0] < p02[0]){
+                                newX = (- b - Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                            else{
+                                newX = (- b + Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                        }
+                        else{
+                            if(p12[0] < p02[0]){
+                                newX = (- b + Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                            else{
+                                newX = (- b - Math.sqrt(Math.pow(b, 2) - 4 * a * c))/(2 * a)
+                            }
+                        }
+                        newY = N * newX + B - N * A
+                    }
+                }
+                temp.push(newX)
+                temp.push(newY)
+                if(i == pointsTableInfo.length - 1){
+                    newPath.push(temp)
+                }
+            }
+            var final = ""
+            for(var i = 0; i < newPath.length; ++i){
+                final += newPath[i][0]
+                if(newPath[i][0] == "Z"){
+                    continue
+                }
+                else{
+                    final += newPath[i][1]
+                    for(var j = 2; j < newPath[i].length; j++){
+                        final += "," + newPath[i][j]
+                    }
+                }
+                final += " "
+            }
+            appendPath(final, "black", 2)
+            return final
+        }
+
+
+        /**
+        * Calculates the intersection point between a curve and a circle defined by a given distance.
+        *
+        * This function computes the intersection point where a distance from a specified
+        * previous point intersects with a cubic bezier curve, assuming the curve is defined
+        * by four control points. It uses a root-finding method to approximate the intersection.
+        *
+        * @param {Array<number>} previousPoint - An array containing the x and y coordinates of the previous point.
+        * @param {number} distance - The distance from the previous point to the circle's radius.
+        * @returns {Array<number>} The coordinates of the intersection point, formatted as [x, y].
+        */
+        function getIntersectionPoint(previousPoint, distance){
+            // we are assuming that there are only 4 points describing the curve, this must be changed in the case we have more
+            var r = distance
+            var curve = getCurve()
+            var bc = relative_to_absolute(curve)
+            var x_0, x_1, x_2, x_3
+            var y_0, y_1, y_2, y_3
+            var a, b
+            x_0 = parseFloat(bc[0][1])
+            x_1 = parseFloat(bc[1][1])
+            x_2 = parseFloat(bc[1][3])
+            x_3 = parseFloat(bc[1][5])
+            y_0 = parseFloat(bc[0][2])
+            y_1 = parseFloat(bc[1][2])
+            y_2 = parseFloat(bc[1][4])
+            y_3 = parseFloat(bc[1][6])
+            a = previousPoint[0]
+            b= previousPoint[1]
+
+            var coefficient0 = x_0**2-2*a*x_0+a**2    +y_0**2-2*b*y_0+b**2 - r**2
+            var coefficient1 = -6*x_0**2+6*x_0*x_1+6*a*x_0-6*a*x_1   -6*y_0**2+6*y_0*y_1+6*b*y_0-6*b*y_1
+            var coefficient2 = -30*x_0*x_1+6*x_0*x_2-6*a*x_0+12*a*x_1-6*a*x_2+3*x_0**2+12*x_0**2+9*x_1**2    -30*y_0*y_1+6*y_0*y_2-6*b*y_0+12*b*y_1-6*b*y_2+3*y_0**2+12*y_0**2+9*y_1**2
+            var coefficient3 = -1*x_0**2-19*x_0**2+2*x_0*x_3+2*a*x_0-36*x_1**2-2*a*x_3+60*x_0*x_1-24*x_0*x_2+18*x_1*x_2-6*a*x_1+6*a*x_2   -y_0**2-19*y_0**2+2*y_0*y_3+2*b*y_0-36*y_1**2-2*b*y_3+60*y_0*y_1-24*y_0*y_2+18*y_1*y_2-6*b*y_1+6*b*y_2
+            var coefficient4 = +15*x_0**2+54*x_1**2+9*x_2**2-60*x_0*x_1+36*x_0*x_2-6*x_0*x_3-54*x_1*x_2+6*x_1*x_3   +15*y_0**2+54*y_1**2+9*y_2**2-60*y_0*y_1+36*y_0*y_2-6*y_0*y_3-54*y_1*y_2+6*y_1*y_3
+            var coefficient5 = +30*x_0*x_1-24*x_0*x_2+6*x_0*x_3+54*x_1*x_2-12*x_1*x_3+6*x_2*x_3-6*x_0**2-36*x_1**2-18*x_2**2   +30*y_0*y_1-24*y_0*y_2+6*y_0*y_3+54*y_1*y_2-12*y_1*y_3+6*y_2*y_3-6*y_0**2-36*y_1**2-18*y_2**2
+            var coefficient6 = x_0**2+x_3**2-6*x_2*x_3-18*x_1*x_2+6*x_1*x_3-6*x_0*x_1+6*x_0*x_2+9*x_2**2-2*x_0*x_3+9*x_1**2   +y_0**2+y_3**2-6*y_2*y_3-18*y_1*y_2+6*y_1*y_3-6*y_0*y_1+6*y_0*y_2+9*y_2**2-2*y_0*y_3+9*y_1**2
+
+
+
+
+            var coefficients = [coefficient0, coefficient1, coefficient2, coefficient3, coefficient4, coefficient5, coefficient6]
+            var xGuess = 0
+            var previousGuess = 1
+            var counter = 0
+            var temp 
+            while(Math.abs(xGuess - previousGuess) > 0.00000000001){
+                if(counter > 1000){
+                    break
+                }
+                if(xGuess > 1){
+                    break
+                }
+                if(xGuess < 0){
+                    xGuess = xGuess 
+                }
+                temp = coefficients[0] * xGuess**0 + coefficients[1] * xGuess**1 + coefficients[2] * xGuess**2 + coefficients[3] * xGuess**3 + coefficients[4] * xGuess**4 + coefficients[5] * xGuess**5 + coefficients[6] * xGuess**6
+                temp = temp/(coefficients[1] * xGuess**0 + coefficients[2] * 2 * xGuess**1 + coefficients[3] * 3 * xGuess**2 + coefficients[4] * 4 * xGuess**3 + coefficients[5] * 5 * xGuess**4 + coefficients[6] * 6 * xGuess**5)
+
+                previousGuess = xGuess
+                xGuess = xGuess - temp
+                counter = counter + 1
+            }
+            previousPoint = [ bezierDegree3(-xGuess, p0[0], p1[0], p2[0], p3[0]),  bezierDegree3(-xGuess, p0[1], p1[1], p2[1], p3[1])]
+            
+
+            //var roots = Math.roots(coefficients);
+        }
+
+
+        /**
+        * Calculates the left and right connection points along a path from a given string.
+        *
+        * This function processes a string representing SVG path commands, identifying 
+        * the leftmost and rightmost points and their respective connection distances.
+        * It splits the input string into components and iteratively checks each command 
+        * to update the left and right connection points based on specific conditions.
+        *
+        * @param {string} str - A string containing SVG path commands, including relative 
+        *                      coordinates and commands separated by spaces.
+        * @returns {Array<number>} An array containing three values: 
+        *                          - The adjusted leftmost point
+        *                          - The adjusted rightmost point
+        *                          - The adjusted left connection point
+        */
+        function getDistanceConnection(str){
+            var lst = str.split(' ')
+            var leftPointWord = parseFloat(lst[0].slice(1))
+            var rightPointWord = parseFloat(lst[0].slice(1))
+            var leftPointConnection = parseFloat(lst[0].slice(1))
+            var temp = parseFloat(lst[0].slice(1))
+            for(var i = 3; i < lst.length; ++i){
+                if(lst[i].split(',').length != 1){
+                    if(lst[i-1].split(',').length != 1){
+                        var temp2 = lst[i-1].split(',')
+                        if(is_command_path(temp2[temp2.length - 2][0])){
+                            temp = temp + parseFloat(temp2[temp2.length-2].slice(1))
+                        }
+                        else{
+                            temp = temp + parseFloat(temp2[temp2.length-2])
+                        }
+                        if(temp < leftPointConnection){
+                            leftPointConnection = temp
+                        }
+                    }
+                    else{
+                        if(is_command_path(lst[i-2][0])){
+                            temp = temp + parseFloat(lst[i-2].slice(1))
+                        }
+                        else{
+                            temp = temp + parseFloat(lst[i-2])
+                        }
+                        if(temp < leftPointConnection){
+                            leftPointConnection = temp
+                        }
+                    } 
+                }
+                
+                else if(is_command_path(lst[i][0])){
+                    if(lst[i-1].split(',').length != 1){
+                        var temp2 = lst[i-1].split(',')
+                        if(is_command_path(temp2[temp2.length - 2][0])){
+                            temp = temp + parseFloat(temp2[temp2.length-2].slice(1))
+                        }
+                        else{
+                            temp = temp + parseFloat(temp2[temp2.length-2])
+                        }
+                        if(temp < leftPointWord){
+                            leftPointWord = temp
+                        }
+                        else if(temp > rightPointWord){
+                            rightPointWord = temp
+                        }
+                    }
+                    else{
+                        if(is_command_path(lst[i-2][0])){
+                            temp = temp + parseFloat(lst[i-2].slice(1))
+                        }
+                        else{
+                            temp = temp + parseFloat(lst[i-2])
+                        }
+                        if(temp < leftPointWord){
+                            leftPointWord = temp
+                        }
+                        else if(temp > rightPointWord){
+                            rightPointWord = temp
+                        }
+                    }
+                    
+                }
+            }
+            return [leftPointWord -60, rightPointWord-60, leftPointConnection-60]
+        }
+        
+
+        /**
+        * Sets the window's onload event to trigger the drawCurve function.
+        *
+        * This event handler is called when the entire page is fully loaded,
+        * including all dependent resources such as stylesheets and images. 
+        * It ensures that the drawCurve function is executed after the page is ready,
+        * allowing for any necessary DOM manipulations or initializations to take place.
+        */
+        window.onload = function() {
+            drawCurve();
+        };
+
+    </script>
+</body>
+</html>
+
